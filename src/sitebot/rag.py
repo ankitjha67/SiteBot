@@ -424,9 +424,18 @@ async def answer_stream(
         chunks = await retrieve(
             site.id, search_q, settings, query_vec=query_vec, wide=settings.rerank_enabled
         )
+        # Graph mode: fuse entity-linked (multi-hop) chunks with the hybrid
+        # results so connected facts a semantic match would miss get surfaced.
+        if site.retrieval_mode == "graph":
+            from sitebot import graph
+            g = await graph.graph_retrieve(site.id, search_q, settings.top_k)
+            if g:
+                chunks = rrf_fuse([chunks, g], settings.top_k * 2)
         if settings.rerank_enabled:
             from sitebot.rerank import rerank as _rerank
             chunks = await _rerank(search_q, chunks, settings.top_k, settings)
+        elif site.retrieval_mode == "graph":
+            chunks = chunks[: settings.top_k]
     confidence = max((c.score for c in chunks), default=0.0)
     floor = max(settings.min_score, site.min_confidence or 0.0)
     if floor > 0.0:

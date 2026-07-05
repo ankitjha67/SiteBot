@@ -56,7 +56,8 @@ async def _require_db():
             "DELETE FROM messages WHERE conversation_id IN "
             "(SELECT id FROM conversations WHERE site_id = ANY($1::int[]))", site_ids
         )
-        for table in ("chunks", "pages", "conversations", "answer_cache", "usage_events"):
+        for table in ("chunks", "pages", "conversations", "answer_cache",
+                      "usage_events", "entities"):
             await pool.execute(
                 f"DELETE FROM {table} WHERE site_id = ANY($1::int[])", site_ids
             )
@@ -228,3 +229,30 @@ async def test_concurrent_message_logging_under_pool_pressure() -> None:
         "(SELECT id FROM conversations WHERE site_id = $1)", site_id
     )
     assert int(n) == 100  # each log_message writes a user + assistant pair
+
+
+async def test_graph_retrieval_links_entities_across_chunks() -> None:
+    from sitebot import graph
+
+    _, site_id = await _make_site()
+    # Two chunks connected only by a shared entity: specs in one, price in another.
+    rows = [
+        ("https://itest.example/specs", "Specs",
+         "The Falcon GT is a coupe with 400 horsepower and all-wheel drive.", 9, _vec(11)),
+        ("https://itest.example/price", "Price",
+         "Falcon GT pricing: the base trim is $61,000 and the Sport trim is $68,500.", 9, _vec(12)),
+        ("https://itest.example/other", "Other",
+         "Our showroom is open on weekdays.", 5, _vec(13)),
+    ]
+    await store.apply_incremental_index(
+        site_id, rows=rows, changed_urls=[r[0] for r in rows], removed_urls=[],
+        page_hashes={r[0]: ("h", r[1]) for r in rows}, seen_urls=[r[0] for r in rows],
+    )
+    n = await graph.rebuild_entity_index(site_id)
+    assert n >= 1  # "Falcon GT" is an entity
+
+    # A question about the entity should pull BOTH the specs and the price chunk.
+    res = await graph.graph_retrieve(site_id, "How much does the Falcon GT cost?", 5)
+    urls = {c.url for c in res}
+    assert "https://itest.example/price" in urls
+    assert "https://itest.example/specs" in urls  # linked via the shared entity

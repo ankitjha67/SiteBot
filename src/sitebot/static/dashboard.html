@@ -770,8 +770,8 @@
 
               <div class="fieldset-title">Answer engine</div>
               <div class="field"><label>Retrieval mode</label>
-                <select id="s_retrieval_mode"><option value="hybrid">Hybrid (fast, default)</option><option value="agentic">Agentic (iterative, best for complex questions)</option></select>
-                <div class="hint">Agentic refines the search across a few passes — higher quality, more LLM calls.</div></div>
+                <select id="s_retrieval_mode"><option value="hybrid">Hybrid (fast, default)</option><option value="graph">Graph (entity-linked, best for multi-hop questions)</option><option value="agentic">Agentic (iterative, best for complex questions)</option></select>
+                <div class="hint">Graph links entities across passages (no extra LLM cost). Agentic refines the search across a few passes (more LLM calls).</div></div>
               <div class="field"><label>Answer mode</label>
                 <select id="s_answer_mode"><option value="llm">LLM (synthesised answers)</option><option value="extractive">Extractive (no LLM — zero token cost)</option></select>
                 <div class="hint">Extractive returns the best matching passage directly. Free — no model tokens.</div></div>
@@ -1048,7 +1048,9 @@ function revokeTeamKey(id) {
     .catch(function (e) { toast(e.message, true); });
 }
 function money(cents) { return "$" + (cents / 100).toFixed(0); }
+var billingCfg = {};
 function loadPlan() {
+  api("/v1/billing/config").then(function (c) { billingCfg = c; }).catch(function () {});
   api("/v1/tenants/me/plan").then(renderPlan).catch(function (e) { $("billResult").textContent = e.message; });
 }
 function renderPlan(p) {
@@ -1082,12 +1084,45 @@ function toggleFeature(key, enable) {
     .then(function (p) { renderPlan(p); toast(enable ? "Feature added" : "Feature removed"); }).catch(function (e) { toast(e.message, true); });
 }
 function subscribe() {
+  // Prefer Razorpay when the platform has it configured (India/INR).
+  if (billingCfg.razorpay) { return payWithRazorpay(); }
   api("/v1/billing/checkout", {method: "POST", body: JSON.stringify(
     {price_id: "plan", success_url: location.href, cancel_url: location.href})})
     .then(function (r) {
       if (r.checkout_url) { window.open(r.checkout_url, "_blank"); }
-      else { $("billResult").textContent = "Connect Stripe keys to take live payment. Your plan is saved."; }
-    }).catch(function () { $("billResult").textContent = "Your plan is saved. Add Stripe keys to charge automatically."; });
+      else { $("billResult").textContent = "Connect a payment gateway (Stripe or Razorpay) to take live payment. Your plan is saved."; }
+    }).catch(function () { $("billResult").textContent = "Your plan is saved. Add gateway keys to charge automatically."; });
+}
+function loadScript(src) {
+  return new Promise(function (res, rej) {
+    if (document.querySelector('script[src="' + src + '"]')) return res();
+    var s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+function payWithRazorpay() {
+  $("billResult").textContent = "Opening Razorpay…";
+  api("/v1/billing/razorpay/order", {method: "POST"})
+    .then(function (order) {
+      return loadScript("https://checkout.razorpay.com/v1/checkout.js").then(function () {
+        var rzp = new Razorpay({
+          key: order.key_id, order_id: order.order_id,
+          amount: order.amount, currency: order.currency,
+          name: "SiteBot", description: "Monthly plan",
+          handler: function (resp) {
+            // Confirm server-side (signature verified) and record to the ledger.
+            api("/v1/billing/razorpay/verify", {method: "POST", body: JSON.stringify({
+              razorpay_order_id: resp.razorpay_order_id,
+              razorpay_payment_id: resp.razorpay_payment_id,
+              razorpay_signature: resp.razorpay_signature})})
+              .then(function (v) { $("billResult").textContent = "Paid " + money(v.amount_cents) + " " + (v.currency || "").toUpperCase() + " — thank you!"; toast("Payment recorded"); })
+              .catch(function (e) { $("billResult").textContent = "Payment verification failed: " + e.message; });
+          },
+        });
+        rzp.open();
+      });
+    })
+    .catch(function (e) { $("billResult").textContent = "Razorpay not available: " + (e.message || "add keys on the platform") + ". Your plan is saved."; });
 }
 function createUser() {
   var email = $("nuEmail").value.trim(), pw = $("nuPw").value;

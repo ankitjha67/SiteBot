@@ -169,7 +169,7 @@ class UpdateSite(BaseModel):
     qualifying_questions: list[str] | None = None
     widget_font: str | None = None
     widget_font_url: str | None = None
-    retrieval_mode: str | None = Field(default=None, pattern="^(hybrid|agentic)$")
+    retrieval_mode: str | None = Field(default=None, pattern="^(hybrid|agentic|graph)$")
     answer_mode: str | None = Field(default=None, pattern="^(llm|extractive)$")
     fallback_extractive: bool | None = None
     lead_capture_enabled: bool | None = None
@@ -988,12 +988,64 @@ async def razorpay_order(ctx: Annotated[AuthContext, Depends(require_auth)]) -> 
     return await payments.create_razorpay_order(ctx.tenant_id, amount, settings, currency=cur)
 
 
+class RazorpayVerify(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+
+
+@app.post("/v1/billing/razorpay/verify")
+async def razorpay_verify(
+    body: RazorpayVerify, ctx: Annotated[AuthContext, Depends(require_auth)]
+) -> dict:
+    """Confirm a completed Razorpay Checkout. Verifies the callback signature
+    server-side, then records the payment as paid in the ledger and marks the
+    tenant active. This is what actually collects the money."""
+    from sitebot import payments
+    if ctx.tenant_id is None:
+        raise HTTPException(status_code=400, detail="Use a tenant credential.")
+    if not payments.verify_razorpay_signature(
+        body.razorpay_order_id, body.razorpay_payment_id,
+        body.razorpay_signature, settings.razorpay_key_secret,
+    ):
+        raise HTTPException(status_code=403, detail="Payment signature check failed.")
+    pool = await get_pool()
+    order = await pool.fetchrow(
+        "SELECT amount_cents, currency FROM payments "
+        "WHERE provider = 'razorpay' AND provider_order_id = $1 AND tenant_id = $2 "
+        "ORDER BY id DESC LIMIT 1",
+        body.razorpay_order_id, ctx.tenant_id,
+    )
+    amount = int(order["amount_cents"]) if order else 0
+    currency = order["currency"] if order else "INR"
+    await payments.record_payment(
+        ctx.tenant_id, "razorpay", amount, status="paid", currency=currency,
+        provider_txn_id=body.razorpay_payment_id, provider_order_id=body.razorpay_order_id,
+        description="Razorpay checkout paid",
+    )
+    await pool.execute(
+        "UPDATE tenants SET billing_status = 'active' WHERE id = $1", ctx.tenant_id
+    )
+    return {"ok": True, "amount_cents": amount, "currency": currency}
+
+
 @app.post("/v1/billing/razorpay/webhook")
 async def razorpay_webhook(request: Request) -> dict:
     from sitebot import payments
     body = await request.body()
     sig = request.headers.get("x-razorpay-signature", "")
     return await payments.handle_razorpay_webhook(body, sig, settings)
+
+
+@app.get("/v1/billing/config")
+async def billing_config() -> dict:
+    """Which gateways are live, for the dashboard to show the right pay button."""
+    return {
+        "razorpay": bool(settings.razorpay_key_id and settings.razorpay_key_secret),
+        "razorpay_key_id": settings.razorpay_key_id,
+        "stripe": bool(settings.stripe_secret_key),
+        "currency": settings.billing_currency,
+    }
 
 
 @app.get("/v1/tenants/me/export")

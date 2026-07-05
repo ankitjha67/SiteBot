@@ -170,6 +170,13 @@ async def ingest_site(
     if rows or removed:
         # Content changed; stale cached answers must not survive a refresh.
         await store.invalidate_cache(site_id)
+        # Rebuild the entity graph so graph retrieval reflects the new content.
+        try:
+            from sitebot import graph
+
+            await graph.rebuild_entity_index(site_id)
+        except Exception:  # noqa: BLE001 - graph index is an enhancement
+            log.warning("entity index rebuild failed for site %s", site_id)
     log.info(
         "ingest done site=%s pages=%d changed=%d removed=%d chunks=%d failed=%d",
         site_id, len(pages), len(changed), len(removed), len(rows), len(result.failed),

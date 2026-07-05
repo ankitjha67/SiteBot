@@ -534,3 +534,16 @@ async def test_agentic_retrieval_refines_and_merges(monkeypatch) -> None:  # typ
     out = await rag.retrieve_agentic(site, "q", settings, [0.0])
     # It retrieved at least twice (initial + one refinement) and merged results.
     assert calls["n"] >= 2 and len(out) >= 2
+
+
+def test_entity_extraction() -> None:
+    from sitebot.graph import extract_entities
+
+    ents = extract_entities(
+        "The 2026 Alpine X5 Hybrid SUV starts at $38,900. Summit Auto Group is in Denver."
+    )
+    names = set(ents)
+    assert "alpine x5" in names
+    assert "summit auto group" in names
+    # Stopword-only capitalization at sentence start is not an entity.
+    assert "the" not in names
