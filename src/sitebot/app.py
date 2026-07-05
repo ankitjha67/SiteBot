@@ -590,15 +590,26 @@ async def report_leads(
 ) -> Response:
     site = await authorize_site(ctx, slug)
     pool = await get_pool()
+    # Sales sorts by score, so hottest leads come first and the qualification
+    # answers are flattened into the row.
     rows = await pool.fetch(
-        "SELECT email, name, note, visitor_id, created_at FROM leads "
+        "SELECT email, name, note, score, qualification, crm_synced, "
+        "visitor_id, created_at FROM leads "
         "WHERE site_id = $1 AND created_at > now() - ($2 || ' days')::interval "
-        "ORDER BY created_at DESC", int(site["id"]), str(days),
+        "ORDER BY score DESC, created_at DESC", int(site["id"]), str(days),
     )
-    return _csv(
-        [dict(r) | {"created_at": r["created_at"].isoformat()} for r in rows],
-        ["email", "name", "note", "visitor_id", "created_at"],
-    )
+    out = []
+    for r in rows:
+        qual = r["qualification"]
+        qual = json.loads(qual) if isinstance(qual, str) else (qual or {})
+        out.append({
+            "email": r["email"], "name": r["name"], "score": r["score"],
+            "qualification": "; ".join(f"{k}: {v}" for k, v in qual.items()),
+            "note": r["note"], "crm_synced": r["crm_synced"],
+            "visitor_id": r["visitor_id"], "created_at": r["created_at"].isoformat(),
+        })
+    return _csv(out, ["email", "name", "score", "qualification", "note",
+                      "crm_synced", "visitor_id", "created_at"])
 
 
 @app.delete("/v1/sites/{slug}")

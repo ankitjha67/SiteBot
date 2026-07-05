@@ -423,7 +423,11 @@
                 conversationId = evt.data && evt.data.conversation_id;
                 saveConversationId(conversationId);
                 startPolling();
-                couldNotAnswer = lastSources.length === 0 && /do not have (that )?information/i.test(acc);
+                // A declined answer is the high-intent moment regardless of
+                // whether retrieval returned sources - hybrid retrieval almost
+                // always returns some chunk, so keying only on zero sources
+                // would miss most lead-capture opportunities.
+                couldNotAnswer = /do not have (that )?information|contact the company directly|no tengo esa informaci/i.test(acc);
               } else if (evt.event === "error") {
                 acc = t("errGeneric");
                 target.querySelector(".text").textContent = acc;

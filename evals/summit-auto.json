@@ -1,0 +1,10 @@
+[
+  {"question": "Do you have a hybrid SUV?", "expect_url": "inventory", "expect_any": ["Alpine X5", "38,900", "38900"]},
+  {"question": "What financing rate do you offer?", "expect_url": "financing", "expect_any": ["4.9%", "4.9"]},
+  {"question": "What are your showroom hours?", "expect_url": "9020", "expect_any": ["9am to 7pm"]},
+  {"question": "How much does a synthetic oil change cost?", "expect_url": "service", "expect_any": ["$89", "89"]},
+  {"question": "How much is the Alpine X5 Limited trim?", "expect_url": "pricelist.pdf", "expect_any": ["44500", "44,500"]},
+  {"question": "Cual es el horario de la sala de exposicion?", "expect_url": "9020", "expect_any": ["lunes a viernes"]},
+  {"question": "Can I return a car after buying it?", "expect_url": "inventory", "expect_any": ["7-day money-back", "250 miles"]},
+  {"question": "Do you take trade-ins?", "expect_url": "9020", "expect_any": ["45 minutes", "trade-in"]}
+]
