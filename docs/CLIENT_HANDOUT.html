@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SiteBot — An AI assistant for your website</title>
+<style>
+  :root{
+    --ink:#15211b; --ink2:#3a4740; --muted:#6b7770; --line:#e4e7e2;
+    --pine:#1d5c46; --pine-soft:#eaf2ed; --amber:#b8791f; --paper:#fbfbf9;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);background:#f0f1ee;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .sheet{max-width:840px;margin:24px auto;background:var(--paper);
+    box-shadow:0 8px 30px rgba(20,33,27,.12);border-radius:14px;overflow:hidden}
+  .hero{background:linear-gradient(135deg,#15211b,#1d5c46);color:#fff;padding:34px 44px}
+  .brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:15px;letter-spacing:.04em}
+  .brand .mk{width:30px;height:30px;border-radius:8px;background:#2c4437;display:flex;
+    align-items:center;justify-content:center;font-family:ui-monospace,monospace;font-size:13px}
+  h1{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:16px 0 8px;line-height:1.15}
+  .hero p{color:#cfe0d4;font-size:16px;max-width:60ch}
+  .body{padding:34px 44px}
+  h2{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--amber);margin:0 0 14px}
+  .section{margin-bottom:30px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 30px}
+  .feat{display:flex;gap:12px}
+  .feat .ic{flex:0 0 auto;width:34px;height:34px;border-radius:9px;background:var(--pine-soft);
+    display:flex;align-items:center;justify-content:center;font-size:18px}
+  .feat b{display:block;font-size:14.5px;color:var(--ink)}
+  .feat span{font-size:13px;color:var(--muted)}
+  .steps{counter-reset:s;display:grid;gap:12px}
+  .step{display:flex;gap:14px;align-items:flex-start}
+  .step .n{counter-increment:s;flex:0 0 auto;width:26px;height:26px;border-radius:50%;
+    background:var(--pine);color:#fff;font-weight:700;font-size:13px;display:flex;
+    align-items:center;justify-content:center}
+  .step .n::before{content:counter(s)}
+  .step b{font-size:14.5px}
+  .step p{font-size:13px;color:var(--muted)}
+  .callout{background:var(--pine-soft);border:1px solid #cfe0d4;border-radius:11px;
+    padding:16px 20px;font-size:14px;color:var(--ink2)}
+  .callout b{color:var(--pine)}
+  .faq{display:grid;gap:12px}
+  .faq .q{font-size:14px;font-weight:700}
+  .faq .a{font-size:13px;color:var(--muted);margin-top:2px}
+  .foot{border-top:1px solid var(--line);margin-top:8px;padding:22px 44px;
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+  .foot .cta{background:var(--pine);color:#fff;font-weight:700;font-size:14px;
+    padding:11px 22px;border-radius:9px;text-decoration:none}
+  .foot small{color:var(--muted);font-size:12px}
+  .edit{color:var(--amber);font-weight:600}
+  @media print{
+    body{background:#fff}
+    .sheet{box-shadow:none;margin:0;max-width:100%;border-radius:0}
+    @page{margin:12mm}
+  }
+  @media(max-width:640px){.grid{grid-template-columns:1fr}.hero,.body,.foot{padding-left:24px;padding-right:24px}}
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <div class="hero">
+    <div class="brand"><span class="mk">S/</span> POWERED BY SITEBOT</div>
+    <h1>An AI assistant that answers your customers, on your website, 24/7.</h1>
+    <p>It reads your own website and documents, then answers visitors instantly — in your brand, in their language — and captures the leads you'd otherwise miss.</p>
+  </div>
+
+  <div class="body">
+
+    <div class="section">
+      <h2>What it does for you</h2>
+      <div class="grid">
+        <div class="feat"><div class="ic">&#128172;</div><div><b>Answers from your content</b><span>Trained on your site &amp; PDFs. Every answer cites its source — no made-up facts.</span></div></div>
+        <div class="feat"><div class="ic">&#127919;</div><div><b>Captures &amp; qualifies leads</b><span>When it can't answer, it collects the visitor's details and books meetings 24/7.</span></div></div>
+        <div class="feat"><div class="ic">&#127760;</div><div><b>Speaks every language</b><span>Replies in whatever language the visitor writes — even ones not on your site.</span></div></div>
+        <div class="feat"><div class="ic">&#128737;</div><div><b>Protects your secrets</b><span>Never reveals confidential business information, even if someone tries to trick it.</span></div></div>
+        <div class="feat"><div class="ic">&#127912;</div><div><b>Matches your brand</b><span>Automatically uses your website's colours and fonts — looks built-in, not bolted-on.</span></div></div>
+        <div class="feat"><div class="ic">&#128241;</div><div><b>Works everywhere</b><span>Website, WhatsApp, Slack, Telegram, and even phone calls — one assistant, every channel.</span></div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>How it works &mdash; you do almost nothing</h2>
+      <div class="steps">
+        <div class="step"><div class="n"></div><div><b>You share your website address.</b><p>We crawl your pages and documents and build a private knowledge base for you.</p></div></div>
+        <div class="step"><div class="n"></div><div><b>We set it up and tune it.</b><p>Your assistant gets a name and photo, your branding, lead forms, and the channels you want.</p></div></div>
+        <div class="step"><div class="n"></div><div><b>We add one line to your site.</b><p>A single snippet, pasted once. The chat bubble then appears on every page.</p></div></div>
+        <div class="step"><div class="n"></div><div><b>You get a dashboard.</b><p>See every conversation, captured leads, and analytics &mdash; and teach the bot new answers in one click.</p></div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="callout">
+        <b>Your data stays yours.</b> Everything runs on a private, secure instance. Your content is only ever used to answer <i>your</i> visitors &mdash; never shared, never visible to anyone outside your organisation. Access keys are encrypted, and you can export or delete all your data at any time.
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Common questions</h2>
+      <div class="faq">
+        <div><div class="q">Will it make things up?</div><div class="a">No. It only answers from your approved content and shows the source. If it doesn't know, it says so and offers to connect the visitor to you.</div></div>
+        <div><div class="q">Can I change what it says?</div><div class="a">Yes. Add answers, upload documents, or type a correction in the dashboard &mdash; it learns instantly. Re-crawls pick up website changes automatically.</div></div>
+        <div><div class="q">What about the cost of running the AI?</div><div class="a">Predictable and transparent &mdash; and there's even a mode that answers with zero AI usage cost for straightforward questions.</div></div>
+        <div><div class="q">How long to go live?</div><div class="a">Usually the same day. Crawling and setup take minutes; embedding is one line on your site.</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="foot">
+    <div>
+      <div style="font-weight:800;font-size:15px">Ready to see it on your site?</div>
+      <small class="edit">[ Edit this: add your company name, email, and phone before sharing ]</small>
+    </div>
+    <a class="cta" href="#">Get your assistant &rarr;</a>
+  </div>
+
+</div>
+</body>
+</html>
