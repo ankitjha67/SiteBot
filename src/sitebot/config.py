@@ -95,6 +95,8 @@ class Settings(BaseSettings):
     # Cross-encoder re-ranking: retrieve wide, re-rank to top_k. Downloads a
     # ~90 MB model on first use; adds ~50-150 ms/query on CPU.
     rerank_enabled: bool = Field(default=False)
+    # Agentic retrieval: max retrieve->assess->refine iterations per question.
+    agentic_max_iters: int = Field(default=2)
     rerank_model: str = Field(default="cross-encoder/ms-marco-MiniLM-L-6-v2")
     # Rewrite follow-up questions into standalone queries before retrieval
     # ("how much is it?" -> "how much does the starter plan cost?").

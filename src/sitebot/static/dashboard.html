@@ -768,6 +768,14 @@
               <div class="field"><label>Show after (seconds)</label><input type="number" id="s_proactive_delay_s" min="0" />
                 <div class="hint">0 disables the teaser bubble.</div></div>
 
+              <div class="fieldset-title">Answer engine</div>
+              <div class="field"><label>Retrieval mode</label>
+                <select id="s_retrieval_mode"><option value="hybrid">Hybrid (fast, default)</option><option value="agentic">Agentic (iterative, best for complex questions)</option></select>
+                <div class="hint">Agentic refines the search across a few passes — higher quality, more LLM calls.</div></div>
+              <div class="field"><label>Answer mode</label>
+                <select id="s_answer_mode"><option value="llm">LLM (synthesised answers)</option><option value="extractive">Extractive (no LLM — zero token cost)</option></select>
+                <div class="hint">Extractive returns the best matching passage directly. Free — no model tokens.</div></div>
+              <div><label class="check" style="margin-top:26px"><input type="checkbox" id="s_fallback_extractive" /> Answer extractively if the model is down/over quota</label></div>
               <div class="fieldset-title">Answer quality</div>
               <div class="field"><label>Minimum retrieval confidence</label><input type="number" id="s_min_confidence" min="0" max="1" step="0.05" />
                 <div class="hint">0–1. Below this the bot admits it doesn't know.</div></div>
@@ -1544,6 +1552,9 @@ function fillSettings(s) {
   $("s_allowed_origins").value = s.allowed_origins || "";
   $("s_recrawl_hours").value = s.recrawl_hours || 0;
   $("s_min_confidence").value = s.min_confidence || 0;
+  $("s_retrieval_mode").value = s.retrieval_mode || "hybrid";
+  $("s_answer_mode").value = s.answer_mode || "llm";
+  $("s_fallback_extractive").checked = s.fallback_extractive !== false;
   $("s_tone").value = s.tone || "";
   $("s_blocked_topics").value = (s.blocked_topics || []).join("\n");
   $("s_canned_answers").value = JSON.stringify(s.canned_answers || [], null, 2);
@@ -1605,6 +1616,9 @@ function saveSettings() {
     allowed_origins: $("s_allowed_origins").value,
     recrawl_hours: parseInt($("s_recrawl_hours").value || "0", 10),
     min_confidence: parseFloat($("s_min_confidence").value || "0"),
+    retrieval_mode: $("s_retrieval_mode").value,
+    answer_mode: $("s_answer_mode").value,
+    fallback_extractive: $("s_fallback_extractive").checked,
     tone: $("s_tone").value,
     blocked_topics: $("s_blocked_topics").value.split("\n").map(function (x) { return x.trim(); }).filter(Boolean),
     canned_answers: canned,

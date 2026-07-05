@@ -169,6 +169,9 @@ class UpdateSite(BaseModel):
     qualifying_questions: list[str] | None = None
     widget_font: str | None = None
     widget_font_url: str | None = None
+    retrieval_mode: str | None = Field(default=None, pattern="^(hybrid|agentic)$")
+    answer_mode: str | None = Field(default=None, pattern="^(llm|extractive)$")
+    fallback_extractive: bool | None = None
     lead_capture_enabled: bool | None = None
     lead_prompt: str | None = None
     lead_webhook_url: str | None = None
@@ -1086,6 +1089,7 @@ async def site_status(slug: str, ctx: Annotated[AuthContext, Depends(require_aut
         "guard_llm_audit", "guard_refusal_message", "guard_blocks",
         "notify_email", "twilio_from", "digest_channel", "avatar_style", "render_js",
         "crm_provider", "booking_url", "widget_font", "widget_font_url",
+        "retrieval_mode", "answer_mode", "fallback_extractive",
     )
     out = {k: site[k] for k in keep if k in site}
     for jkey in (

@@ -488,3 +488,49 @@ def test_razorpay_signature_verification() -> None:
     wsig = _hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
     assert verify_razorpay_webhook(body, wsig, secret) is True
     assert verify_razorpay_webhook(body, "nope", secret) is False
+
+
+def test_extractive_answer_no_llm() -> None:
+    from sitebot.rag import extractive_answer
+    from sitebot.store import RetrievedChunk
+
+    chunks = [
+        RetrievedChunk(
+            url="u1", title="Shipping",
+            content="Standard shipping costs $5.99 and takes 3 to 5 business days. "
+                    "Free shipping applies to orders over $40. We ship worldwide.",
+            score=0.9),
+        RetrievedChunk(url="u2", title="Other", content="Our office is in Denver.", score=0.4),
+    ]
+    ans = extractive_answer("How much is standard shipping?", chunks)
+    assert "5.99" in ans and ans.endswith("[1]")
+    # Empty chunks -> the standard fallback, still no LLM call.
+    assert extractive_answer("anything", []).startswith("I do not have")
+
+
+async def test_agentic_retrieval_refines_and_merges(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import sitebot.rag as rag
+    from sitebot.config import Settings
+    from sitebot.store import RetrievedChunk, SiteRow
+
+    calls = {"n": 0}
+
+    async def fake_retrieve(site_id, q, settings, query_vec=None, wide=False):  # type: ignore[no-untyped-def]
+        calls["n"] += 1
+        return [RetrievedChunk(url=f"u{calls['n']}", title="t", content=f"snippet {q}", score=0.5)]
+
+    async def fake_stream(system, messages, settings, **kw):  # type: ignore[no-untyped-def]
+        # First judged insufficient with a refined query, then sufficient.
+        if calls["n"] <= 1:
+            yield '{"sufficient": false, "query": "refined query"}'
+        else:
+            yield '{"sufficient": true, "query": ""}'
+
+    monkeypatch.setattr(rag, "retrieve", fake_retrieve)
+    monkeypatch.setattr(rag, "stream_answer", fake_stream)
+    site = SiteRow(id=1, tenant_id=1, slug="s", start_url="x", display_name="A",
+                   theme_color="#000", welcome_message="hi", status="ready")
+    settings = Settings(agentic_max_iters=2, rerank_enabled=False)
+    out = await rag.retrieve_agentic(site, "q", settings, [0.0])
+    # It retrieved at least twice (initial + one refinement) and merged results.
+    assert calls["n"] >= 2 and len(out) >= 2

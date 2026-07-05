@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -201,6 +202,100 @@ async def retrieve(
     return rrf_fuse([vector_hits, keyword_hits], k)
 
 
+AGENTIC_PROMPT = (
+    "You judge whether retrieved snippets are enough to fully answer a question. "
+    "Reply with ONLY a compact JSON object: "
+    '{"sufficient": true|false, "query": "a better search query if not sufficient, else empty"}. '
+    "No prose, no markdown."
+)
+
+
+async def retrieve_agentic(
+    site: SiteRow, question: str, settings: Settings, query_vec: list[float],
+) -> list[RetrievedChunk]:
+    """Iterative retrieval: retrieve, ask the model if the context is enough,
+    and if not, retrieve again with a refined query. Merges results, deduped,
+    capped by max iterations. Falls back to a single hybrid retrieve on any
+    error so it can never make retrieval worse."""
+    seen: set[str] = set()
+    merged: list[RetrievedChunk] = []
+
+    def _absorb(chunks: list[RetrievedChunk]) -> None:
+        for c in chunks:
+            key = c.url + "\x00" + c.content[:60]
+            if key not in seen:
+                seen.add(key)
+                merged.append(c)
+
+    try:
+        _absorb(await retrieve(site.id, question, settings, query_vec=query_vec, wide=True))
+        for _ in range(max(1, settings.agentic_max_iters)):
+            snippets = "\n---\n".join(c.content[:400] for c in merged[: settings.top_k])
+            parts: list[str] = []
+            async for text in stream_answer(
+                AGENTIC_PROMPT,
+                [{"role": "user", "content": f"Question: {question}\n\nSnippets:\n{snippets}"}],
+                settings, provider=site.model_provider or None,
+                model=site.model_name or None, api_key=site.llm_api_key or None,
+            ):
+                parts.append(text)
+            verdict = _safe_json("".join(parts))
+            if verdict.get("sufficient") or not verdict.get("query"):
+                break
+            refined = str(verdict["query"])[:300]
+            _absorb(await retrieve(site.id, refined, settings, wide=True))
+        # Re-rank the merged pool down to top_k for a focused final context.
+        if settings.rerank_enabled and len(merged) > settings.top_k:
+            from sitebot.rerank import rerank as _rerank
+            return await _rerank(question, merged, settings.top_k, settings)
+        return merged[: settings.top_k]
+    except Exception:  # noqa: BLE001 - agentic is an enhancement, never a gate
+        log.warning("agentic retrieval failed for site %s; using hybrid", site.slug)
+        return await retrieve(site.id, question, settings, query_vec=query_vec)
+
+
+def _safe_json(text: str) -> dict:
+    text = text.strip()
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        return {}
+    try:
+        obj = json.loads(text[start : end + 1])
+        return obj if isinstance(obj, dict) else {}
+    except ValueError:
+        return {}
+
+
+def extractive_answer(question: str, chunks: list[RetrievedChunk]) -> str:
+    """Build an answer from retrieved passages WITHOUT calling an LLM — zero
+    token cost. Picks the sentences across the top chunks that best overlap the
+    question. Good for FAQ-style content; used as a cost-free mode and as an
+    automatic fallback when the LLM is unavailable."""
+    if not chunks:
+        return FALLBACK_MESSAGE
+    stop = {
+        "the", "a", "an", "is", "are", "was", "do", "does", "did", "can", "what",
+        "how", "when", "where", "who", "why", "your", "our", "you", "we", "of",
+        "for", "to", "in", "on", "at", "and", "or", "with", "about", "i", "my",
+    }
+    qwords = {w for w in re.findall(r"[\w$%.-]+", question.lower()) if w not in stop and len(w) > 2}
+    scored: list[tuple[int, int, str]] = []
+    for ci, c in enumerate(chunks[:3]):
+        for si, sent in enumerate(re.split(r"(?<=[.!?])\s+|\n", c.content)):
+            s = sent.strip()
+            if len(s) < 20:
+                continue
+            sw = {w.rstrip("s") for w in re.findall(r"[\w$%.-]+", s.lower())}
+            overlap = sum(1 for q in qwords if q.rstrip("s") in sw)
+            if overlap:
+                scored.append((overlap, -(ci * 100 + si), s))
+    scored.sort(reverse=True)
+    picks = [s for _, _, s in scored[:3]]
+    if not picks:
+        picks = [chunks[0].content.strip()[:300]]
+    return " ".join(picks)[:700].strip() + " [1]"
+
+
 def _build_context(chunks: list[RetrievedChunk]) -> tuple[str, list[dict[str, str]]]:
     blocks: list[str] = []
     sources: list[dict[str, str]] = []
@@ -319,13 +414,19 @@ async def answer_stream(
             except Exception as exc:  # noqa: BLE001 - degrade to context-only
                 log.warning("action %s failed: %s", action.name, exc)
 
-    # 5. Hybrid retrieval (wide when re-ranking) + cross-encoder re-rank.
-    chunks = await retrieve(
-        site.id, search_q, settings, query_vec=query_vec, wide=settings.rerank_enabled
-    )
-    if settings.rerank_enabled:
-        from sitebot.rerank import rerank as _rerank
-        chunks = await _rerank(search_q, chunks, settings.top_k, settings)
+    # 5. Retrieval. Agentic mode iterates (retrieve -> assess -> refine) for
+    # hard questions; hybrid is the default. Extractive answering skips the
+    # agentic LLM calls since it will not call a model anyway.
+    extractive = site.answer_mode == "extractive"
+    if site.retrieval_mode == "agentic" and not extractive:
+        chunks = await retrieve_agentic(site, search_q, settings, query_vec)
+    else:
+        chunks = await retrieve(
+            site.id, search_q, settings, query_vec=query_vec, wide=settings.rerank_enabled
+        )
+        if settings.rerank_enabled:
+            from sitebot.rerank import rerank as _rerank
+            chunks = await _rerank(search_q, chunks, settings.top_k, settings)
     confidence = max((c.score for c in chunks), default=0.0)
     floor = max(settings.min_score, site.min_confidence or 0.0)
     if floor > 0.0:
@@ -365,6 +466,17 @@ async def answer_stream(
 
     yield {"event": "sources", "data": sources}
 
+    # Extractive mode: answer directly from the retrieved passages, no LLM call
+    # and therefore zero token cost. Chunks are already guard-filtered above, so
+    # protected secrets can't appear here.
+    if extractive:
+        full = extractive_answer(question, chunks)
+        yield {"event": "token", "data": full}
+        answered = full != FALLBACK_MESSAGE
+        conv_id = await _finish(full, sources, answered, confidence)
+        yield {"event": "done", "data": {"conversation_id": conv_id}}
+        return
+
     # Cost routing: an easy question (short, retrieval very confident, no live
     # action involved) is answered by the cheaper model when one is configured.
     # The cheap model must belong to the same provider as the site's model.
@@ -387,24 +499,43 @@ async def answer_stream(
         # Buffer the whole answer and release it only after the deterministic
         # scan (and optional semantic auditor) pass. This holds even if the
         # model is fully jailbroken, at the cost of live token streaming.
-        full, blocked = await guard.guarded_answer(
-            model_stream, site.protected_secrets, site.protected_topics,
-            site.guard_refusal_message, settings,
-            site.model_provider or None, site.model_name or None,
-            site.llm_api_key or None,
-            # A detected jailbreak forces the semantic auditor on, even if the
-            # owner left it off.
-            run_audit=site.guard_llm_audit or jailbreak,
-        )
+        try:
+            full, blocked = await guard.guarded_answer(
+                model_stream, site.protected_secrets, site.protected_topics,
+                site.guard_refusal_message, settings,
+                site.model_provider or None, site.model_name or None,
+                site.llm_api_key or None,
+                # A detected jailbreak forces the semantic auditor on, even if
+                # the owner left it off.
+                run_audit=site.guard_llm_audit or jailbreak,
+            )
+        except Exception:  # noqa: BLE001 - model outage on a guarded site
+            log.warning("guarded answer model failed for site %s", site.slug)
+            if site.fallback_extractive and chunks:
+                # Chunks are already guard-filtered above, so the extractive
+                # answer cannot contain a protected secret.
+                full, blocked = extractive_answer(question, chunks), False
+            else:
+                raise
         if blocked:
             await store.increment_guard_blocks(site.id)
             sources = []
         yield {"event": "token", "data": full}
     else:
         collected: list[str] = []
-        async for text in model_stream:
-            collected.append(text)
-            yield {"event": "token", "data": text}
+        try:
+            async for text in model_stream:
+                collected.append(text)
+                yield {"event": "token", "data": text}
+        except Exception:  # noqa: BLE001 - model outage / quota exhaustion
+            log.warning("answer model failed for site %s", site.slug)
+            # If the model died before producing anything and the site allows
+            # it, answer extractively (zero-cost) instead of showing an error.
+            if not collected and site.fallback_extractive and chunks:
+                collected = [extractive_answer(question, chunks)]
+                yield {"event": "token", "data": collected[0]}
+            elif not collected:
+                raise
         full = "".join(collected).strip() or FALLBACK_MESSAGE
 
     answered = full != FALLBACK_MESSAGE and "do not have that information" not in full.lower()

@@ -80,6 +80,9 @@ class SiteRow:
     widget_font: str = ""
     widget_font_url: str = ""
     brand_extracted: bool = False
+    retrieval_mode: str = "hybrid"
+    answer_mode: str = "llm"
+    fallback_extractive: bool = True
 
 
 @dataclass(slots=True)
@@ -107,7 +110,8 @@ _SITE_COLUMNS = (
     "s.teams_app_id, s.teams_app_password, s.digest_channel, s.avatar_style, "
     "s.llm_api_key, s.extra_urls, s.crm_provider, s.crm_api_key, "
     "s.booking_url, s.qualifying_questions, "
-    "s.widget_font, s.widget_font_url, s.brand_extracted"
+    "s.widget_font, s.widget_font_url, s.brand_extracted, "
+    "s.retrieval_mode, s.answer_mode, s.fallback_extractive"
 )
 
 
