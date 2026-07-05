@@ -1,0 +1,53 @@
+# ---- Secrets & environment (NEVER commit) ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.*
+credentials.*
+# Local smoke-test context: contains live tenant/public keys
+smoke_ctx.json
+*_ctx.json
+
+# ---- Local data, exports, dumps ----
+*.csv
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.sql.gz
+sitebot-export*.json
+report*.csv
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ---- Tooling / IDE / OS ----
+.claude/
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ---- Logs & scratch ----
+*.log
+scratch/
+scratchpad/
+tmp/

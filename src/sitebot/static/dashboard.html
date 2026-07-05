@@ -1,0 +1,1468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SiteBot — Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f4f3ee;
+    --surface: #fdfdfb;
+    --ink: #1c211e;
+    --ink-2: #454d48;
+    --muted: #79817c;
+    --line: #e3e1d7;
+    --line-strong: #cfccc0;
+    --pine: #1d5c46;
+    --pine-dark: #17493a;
+    --pine-soft: #e7efe9;
+    --amber: #9a6b15;
+    --amber-soft: #f5ecd9;
+    --red: #a8322c;
+    --red-soft: #f6e5e3;
+    --sidebar: #15211b;
+    --sidebar-ink: #dfe6df;
+    --sidebar-muted: #8a988e;
+    --sidebar-line: #24332b;
+    --sans: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "Cascadia Code", monospace;
+    --shadow: 0 1px 2px rgb(28 33 30 / 0.06);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; font-family: var(--sans); background: var(--paper); color: var(--ink);
+         font-size: 14px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--pine); color: #fff; }
+
+  button { font: inherit; cursor: pointer; }
+  input, select, textarea { font: inherit; color: var(--ink); }
+  a { color: var(--pine); }
+
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .microlabel { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+
+  /* ============================= login gate ============================= */
+  #login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .gate { width: 400px; max-width: 100%; }
+  .gate .wordmark { margin-bottom: 28px; }
+  .gate-card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+               padding: 28px; box-shadow: var(--shadow); }
+  .gate-card h1 { font-size: 17px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .gate-card p { color: var(--muted); font-size: 13px; margin: 0 0 18px; }
+  .gate-foot { margin-top: 16px; font-size: 12px; color: var(--muted); }
+  .gate-foot code { font-family: var(--mono); font-size: 11px; background: var(--paper); border: 1px solid var(--line);
+                    border-radius: 4px; padding: 1px 5px; }
+
+  .wordmark { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.02em; font-size: 16px; }
+  .wordmark .glyph { width: 26px; height: 26px; border-radius: 7px; background: var(--pine); color: #fff;
+                     display: inline-flex; align-items: center; justify-content: center; font-family: var(--mono);
+                     font-size: 13px; font-weight: 600; }
+
+  /* ============================= app shell ============================= */
+  #app { display: none; min-height: 100vh; }
+  #app.on { display: grid; grid-template-columns: 232px 1fr; }
+
+  aside { background: var(--sidebar); color: var(--sidebar-ink); padding: 20px 14px;
+          display: flex; flex-direction: column; gap: 4px; position: sticky; top: 0; height: 100vh; }
+  aside .wordmark { color: #fff; padding: 2px 10px 18px; }
+  aside .wordmark .glyph { background: #2c4437; }
+  .navgroup { margin-top: 14px; }
+  .navgroup > .microlabel { color: var(--sidebar-muted); padding: 0 10px 6px; display: block; }
+  .navitem { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; background: none;
+             border: 0; color: var(--sidebar-ink); padding: 7px 10px; border-radius: 7px; font-size: 13.5px;
+             font-weight: 500; opacity: 0.82; }
+  .navitem:hover { background: var(--sidebar-line); opacity: 1; }
+  .navitem.active { background: var(--sidebar-line); opacity: 1; color: #fff; }
+  .navitem .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--sidebar-muted); flex: 0 0 auto; }
+  .navitem.active .dot { background: #6fbf95; }
+  #sitenav { display: none; }
+  #sitenav.on { display: block; }
+  #sitenav .sitename { font-family: var(--mono); font-size: 11.5px; color: var(--sidebar-muted);
+                       padding: 0 10px 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .spacer { flex: 1; }
+  .account { border-top: 1px solid var(--sidebar-line); padding: 14px 10px 4px; }
+  .account .who { font-size: 13px; font-weight: 600; color: #fff; }
+  .account .plan { font-size: 12px; color: var(--sidebar-muted); margin-top: 1px; }
+  .account button { margin-top: 10px; width: 100%; background: none; border: 1px solid var(--sidebar-line);
+                    color: var(--sidebar-muted); border-radius: 7px; padding: 6px 10px; font-size: 12.5px; }
+  .account button:hover { color: var(--sidebar-ink); border-color: #3a4d41; }
+
+  main { padding: 30px 40px 60px; max-width: 1060px; width: 100%; }
+
+  /* ============================= primitives ============================= */
+  .pagehead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+  .pagehead h2 { font-size: 21px; margin: 0; letter-spacing: -0.02em; }
+  .pagehead .sub { color: var(--muted); font-size: 13px; margin-top: 3px; }
+
+  .btn { background: var(--pine); color: #fff; border: 1px solid var(--pine); border-radius: 7px;
+         padding: 7px 14px; font-size: 13.5px; font-weight: 600; }
+  .btn:hover { background: var(--pine-dark); }
+  .btn.ghost { background: var(--surface); color: var(--ink-2); border-color: var(--line-strong); font-weight: 500; }
+  .btn.ghost:hover { border-color: var(--muted); color: var(--ink); }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+          box-shadow: var(--shadow); }
+  .card + .card { margin-top: 18px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+               padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  .card-head h3 { font-size: 13.5px; font-weight: 600; margin: 0; }
+  .card-body { padding: 18px; }
+  .card-body.flush { padding: 0; }
+
+  input[type=text], input[type=password], input[type=url], input[type=number], input[type=email], select, textarea {
+    width: 100%; padding: 8px 11px; border: 1px solid var(--line-strong); border-radius: 7px;
+    background: var(--surface); font-size: 13.5px; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--pine); outline-offset: -1px; border-color: var(--pine); }
+  textarea { resize: vertical; min-height: 64px; font-family: var(--mono); font-size: 12.5px; }
+  label { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-2); margin: 0 0 5px; }
+  .field { margin-bottom: 14px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 10px 18px; font-size: 11px; font-weight: 600; letter-spacing: 0.07em;
+       text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); }
+  td { padding: 11px 18px; border-bottom: 1px solid var(--line); font-size: 13.5px; vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  tr.rowlink { cursor: pointer; }
+  tr.rowlink:hover td { background: #f7f6f1; }
+  td.num, th.num { text-align: right; }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px 2px 7px; border-radius: 99px;
+          font-size: 11.5px; font-weight: 600; border: 1px solid transparent; }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.ok    { color: var(--pine); background: var(--pine-soft); border-color: #cfe0d4; }
+  .pill.err   { color: var(--red); background: var(--red-soft); border-color: #e8cbc8; }
+  .pill.busy  { color: var(--amber); background: var(--amber-soft); border-color: #e7d9b8; }
+
+  .empty { padding: 42px 18px; text-align: center; color: var(--muted); font-size: 13px; }
+  .empty .microlabel { display: block; margin-bottom: 6px; color: var(--ink-2); }
+
+  /* ============================= stats & chart ============================= */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 0;
+          border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--line); }
+  .kpi { background: var(--surface); padding: 15px 16px 13px; }
+  .kpi .n { font-family: var(--mono); font-size: 22px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
+  .kpi .n small { font-size: 13px; color: var(--muted); font-weight: 500; }
+  .kpi .l { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+  .kpis { gap: 1px; }
+
+  .chartwrap { padding: 18px 18px 10px; }
+  .chartwrap .microlabel { display: block; margin-bottom: 12px; }
+  .bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 120px;
+               border-bottom: 1px solid var(--line-strong); padding: 0 2px; }
+  .bar { flex: 1; max-width: 26px; background: var(--pine); opacity: 0.85; border-radius: 2px 2px 0 0;
+         min-height: 3px; position: relative; }
+  .bar:hover { opacity: 1; }
+  .bar span { display: none; position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+              background: var(--ink); color: #fff; padding: 3px 8px; border-radius: 5px; font-size: 11px;
+              font-family: var(--mono); white-space: nowrap; z-index: 2; }
+  .bar:hover span { display: block; }
+  .axis { display: flex; justify-content: space-between; padding: 6px 2px 8px; font-family: var(--mono);
+          font-size: 10.5px; color: var(--muted); }
+
+  /* ============================= site view bits ============================= */
+  .snippet { background: #1b241f; color: #cfe0d4; border-radius: 8px; padding: 14px 16px; overflow-x: auto;
+             font-family: var(--mono); font-size: 12px; line-height: 1.7; position: relative; }
+  .snippet .attr { color: #8fb8a0; }
+  .snippet .copy { position: absolute; top: 8px; right: 8px; background: #2c4437; color: #cfe0d4;
+                   border: 0; border-radius: 5px; padding: 3px 9px; font-size: 11px; font-family: var(--sans); }
+  .snippet .copy:hover { background: #3a5748; }
+
+  .qrow { display: flex; justify-content: space-between; gap: 14px; padding: 9px 18px; border-bottom: 1px solid var(--line); }
+  .qrow:last-child { border-bottom: 0; }
+  .qrow .q { font-size: 13.5px; }
+  .qrow .c { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+  .transcript { padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+  .msg { max-width: 78%; padding: 8px 13px; border-radius: 10px; font-size: 13.5px; }
+  .msg.user { align-self: flex-end; background: var(--pine); color: #fff; border-bottom-right-radius: 3px; }
+  .msg.assistant { align-self: flex-start; background: var(--paper); border: 1px solid var(--line);
+                   border-bottom-left-radius: 3px; }
+  .msg .fb { margin-left: 6px; }
+
+  .formgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; }
+  .formgrid .full { grid-column: 1 / -1; }
+  .fieldset-title { grid-column: 1 / -1; font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+                    text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line);
+                    padding-bottom: 6px; margin: 10px 0 14px; }
+  .fieldset-title:first-child { margin-top: 0; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; color: var(--ink);
+           margin-bottom: 10px; }
+  .check input { width: auto; accent-color: var(--pine); }
+
+  .meta-inline { color: var(--muted); font-size: 13px; }
+  .meta-inline b { color: var(--ink); font-weight: 600; }
+
+  #toast { position: fixed; bottom: 22px; right: 22px; background: var(--ink); color: #fff; padding: 10px 16px;
+           border-radius: 8px; display: none; z-index: 50; font-size: 13.5px; box-shadow: 0 8px 24px rgb(0 0 0 / 0.25); }
+  #toast.bad { background: var(--red); }
+
+  .view { display: none; }
+  .view.on { display: block; }
+  .tabpane { display: none; }
+  .tabpane.on { display: block; }
+
+  @media (max-width: 860px) {
+    #app.on { grid-template-columns: 1fr; }
+    aside { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; }
+    aside .spacer, .navgroup > .microlabel { display: none; }
+    main { padding: 20px; }
+    .formgrid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================ login ============================ -->
+<div id="login">
+  <div class="gate">
+    <div class="wordmark"><span class="glyph">S/</span> SiteBot <span style="color:var(--muted);font-weight:500">Console</span></div>
+    <div class="gate-card">
+      <h1>Connect to your workspace</h1>
+      <p>Use your tenant key or the global admin key. It never leaves this browser.</p>
+      <div class="field">
+        <label for="apiKey">API key</label>
+        <input type="password" id="apiKey" placeholder="tk_..." autocomplete="off" />
+      </div>
+      <button class="btn" style="width:100%" onclick="login()">Connect</button>
+      <div style="text-align:center;color:var(--muted);font-size:12px;margin:12px 0 8px">— or sign in with email —</div>
+      <div class="field"><label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" placeholder="you@company.com" autocomplete="username" /></div>
+      <div class="field"><label for="loginPw">Password</label>
+        <input type="password" id="loginPw" placeholder="••••••••••" autocomplete="current-password" /></div>
+      <button class="btn ghost" style="width:100%" onclick="emailLogin()">Sign in</button>
+      <div class="gate-foot">Widget keys (<code>pk_...</code>) belong in the embed snippet, not here.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ app shell ============================ -->
+<div id="app">
+  <aside>
+    <div class="wordmark"><span class="glyph">S/</span> SiteBot</div>
+
+    <div class="navgroup">
+      <span class="microlabel">Workspace</span>
+      <button class="navitem active" id="nav-sites" onclick="showSites()"><span class="dot"></span>Sites</button>
+      <button class="navitem" id="nav-team" onclick="showTeam()"><span class="dot"></span>Team</button>
+    </div>
+
+    <div class="navgroup" id="sitenav">
+      <span class="microlabel">Site</span>
+      <div class="sitename" id="navSiteName"></div>
+      <button class="navitem" data-tab="analytics" onclick="showTab('analytics')"><span class="dot"></span>Analytics</button>
+      <button class="navitem" data-tab="knowledge" onclick="showTab('knowledge')"><span class="dot"></span>Knowledge</button>
+      <button class="navitem" data-tab="actions" onclick="showTab('actions')"><span class="dot"></span>Actions</button>
+      <button class="navitem" data-tab="security" onclick="showTab('security')"><span class="dot"></span>Security</button>
+      <button class="navitem" data-tab="playground" onclick="showTab('playground')"><span class="dot"></span>Playground</button>
+      <button class="navitem" data-tab="unanswered" onclick="showTab('unanswered')"><span class="dot"></span>Unanswered</button>
+      <button class="navitem" data-tab="leads" onclick="showTab('leads')"><span class="dot"></span>Leads</button>
+      <button class="navitem" data-tab="handoffs" onclick="showTab('handoffs')"><span class="dot"></span>Handoffs</button>
+      <button class="navitem" data-tab="conversations" onclick="showTab('conversations')"><span class="dot"></span>Conversations</button>
+      <button class="navitem" data-tab="settings" onclick="showTab('settings')"><span class="dot"></span>Settings</button>
+    </div>
+
+    <div class="spacer"></div>
+    <div class="account">
+      <div class="who" id="who">—</div>
+      <div class="plan" id="whoPlan"></div>
+      <button onclick="logout()">Switch key</button>
+    </div>
+  </aside>
+
+  <main>
+    <!-- ================== view: sites overview ================== -->
+    <div class="view on" id="view-sites">
+      <div class="pagehead">
+        <div><h2>Sites</h2><div class="sub">Every indexed knowledge base in this workspace.</div></div>
+        <a class="btn" href="/onboarding" style="text-decoration:none">+ Onboard a client</a>
+      </div>
+
+      <div class="kpis" id="accountKpis" style="margin-bottom:18px"></div>
+
+      <div class="card">
+        <div class="card-body flush">
+          <table id="sitesTable">
+            <thead><tr>
+              <th>Site</th><th>Status</th><th class="num">Pages</th><th class="num">Chunks</th><th>Last indexed</th><th></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+          <div class="empty" id="sitesEmpty" style="display:none">
+            <span class="microlabel">No sites yet</span>
+            Index your first website below — crawling starts immediately.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Add a site</h3></div>
+        <div class="card-body">
+          <div class="formgrid">
+            <div class="field"><label>Name</label><input type="text" id="newName" placeholder="Acme Inc" /></div>
+            <div class="field"><label>Start URL</label><input type="url" id="newUrl" placeholder="https://www.acme.com" /></div>
+          </div>
+          <button class="btn" onclick="createSite()">Create and index</button>
+          <span class="hint" style="margin-left:12px">Crawls up to the configured page cap, honouring robots.txt.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================== view: team ================== -->
+    <div class="view" id="view-team">
+      <div class="pagehead">
+        <div><h2>Team</h2><div class="sub">Extra API keys for teammates — admin (full access) or viewer (read-only).</div></div>
+      </div>
+      <div class="card">
+        <div class="card-body flush">
+          <table id="teamT"><thead><tr><th>Name</th><th>Role</th><th>Created</th><th>Last used</th><th></th></tr></thead><tbody></tbody></table>
+          <div class="empty" id="teamEmpty" style="display:none"><span class="microlabel">No team keys</span>Create one below and share it with a teammate.</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Create a key</h3></div>
+        <div class="card-body">
+          <div class="formgrid">
+            <div class="field"><label>Name</label><input type="text" id="tkName" placeholder="Priya — support" /></div>
+            <div class="field"><label>Role</label><select id="tkRole"><option value="admin">Admin — full access</option><option value="viewer">Viewer — read-only</option></select></div>
+          </div>
+          <button class="btn" onclick="createTeamKey()">Create key</button>
+          <div class="hint" id="tkResult" style="margin-top:10px"></div>
+        </div>
+      </div>
+      <div class="card" id="billingCard">
+        <div class="card-head"><h3>Plan &amp; billing</h3><span class="meta-inline">Self-serve upgrade via Stripe</span></div>
+        <div class="card-body">
+          <div class="formgrid">
+            <div><b>Starter</b> — 2,000 msgs/mo<br><button class="btn ghost" style="margin-top:6px" onclick="upgrade('starter')">Choose</button></div>
+            <div><b>Growth</b> — 10,000 msgs/mo<br><button class="btn ghost" style="margin-top:6px" onclick="upgrade('growth')">Choose</button></div>
+            <div><b>Business</b> — 40,000 msgs/mo<br><button class="btn ghost" style="margin-top:6px" onclick="upgrade('business')">Choose</button></div>
+          </div>
+          <div class="hint" id="billResult" style="margin-top:8px">Usage and current plan are shown in the sidebar. Checkout requires Stripe keys on the platform.</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Email sign-in &amp; data</h3></div>
+        <div class="card-body">
+          <div class="formgrid">
+            <div class="field"><label>Email</label><input type="email" id="nuEmail" placeholder="teammate@company.com" /></div>
+            <div class="field"><label>Password (min 10 chars)</label><input type="password" id="nuPw" /></div>
+          </div>
+          <button class="btn ghost" onclick="createUser()">Create email login</button>
+          <button class="btn ghost" onclick="downloadMyData()" style="margin-left:8px">Download my data (GDPR)</button>
+          <div class="hint" id="nuResult" style="margin-top:8px"></div>
+        </div>
+      </div>
+      <div class="card" id="rotateCard">
+        <div class="card-head"><h3>Your access key</h3><span class="meta-inline">Rotate if it may have leaked</span></div>
+        <div class="card-body">
+          <p class="hint">Generating a new key <b>immediately invalidates your current one</b>. You'll need to sign in again with the new key.</p>
+          <button class="btn ghost" onclick="rotateMyKey()">Rotate my key</button>
+          <div class="hint" id="rotateResult" style="margin-top:10px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================== view: single site ================== -->
+    <div class="view" id="view-site">
+      <div class="pagehead">
+        <div>
+          <h2 id="siteTitle" style="font-family:var(--mono);font-size:18px"></h2>
+          <div class="sub" id="siteMeta"></div>
+        </div>
+        <div style="display:flex; gap:8px; flex:0 0 auto">
+          <button class="btn ghost" onclick="reindex(true)">Full re-index</button>
+          <button class="btn ghost" onclick="downloadReport('conversations')">Chats CSV</button>
+          <button class="btn ghost" onclick="downloadReport('leads')">Leads CSV</button>
+          <button class="btn" onclick="reindex(false)">Re-crawl</button>
+        </div>
+      </div>
+
+      <div class="card" id="embedCard">
+        <div class="card-head"><h3>Install</h3><span class="meta-inline">Paste before <span class="num">&lt;/body&gt;</span> on the customer site</span></div>
+        <div class="card-body">
+          <div class="snippet"><button class="copy" onclick="copySnippet()">Copy</button><pre id="embedSnippet" style="margin:0"></pre></div>
+        </div>
+      </div>
+
+      <!-- analytics -->
+      <div class="tabpane on" id="tab-analytics">
+        <div class="kpis" id="statGrid" style="margin-bottom:18px"></div>
+        <div class="card">
+          <div class="chartwrap">
+            <span class="microlabel">Messages per day — last 30 days</span>
+            <div class="bar-chart" id="chart"></div>
+            <div class="axis" id="chartAxis"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Top questions</h3><span class="meta-inline">30 days</span></div>
+          <div class="card-body flush" id="topQ"></div>
+        </div>
+      </div>
+
+      <!-- knowledge -->
+      <div class="tabpane" id="tab-knowledge">
+        <div class="card">
+          <div class="card-head"><h3>Websites to crawl</h3><span class="meta-inline">One knowledge base, many seed URLs</span></div>
+          <div class="card-body">
+            <div class="field"><label>Primary website</label>
+              <input type="text" id="kbStartUrl" placeholder="https://acme.com" />
+              <div class="hint">The main site the bot learns from.</div></div>
+            <div class="field full"><label>Additional websites</label>
+              <textarea id="kbExtraUrls" rows="3" placeholder="https://docs.acme.com&#10;https://help.acme.com&#10;(one URL per line — optional)"></textarea>
+              <div class="hint">Each is crawled within its own domain and merged into this client's single knowledge base.</div></div>
+            <button class="btn" onclick="saveSeedUrls()">Save &amp; re-crawl all</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Add knowledge</h3><span class="meta-inline">Beyond the crawler: files, text, and Q&amp;A pairs</span></div>
+          <div class="card-body">
+            <div class="formgrid">
+              <div>
+                <div class="field"><label>Upload a document</label>
+                  <input type="file" id="srcFile" accept=".pdf,.docx,.txt,.md,.csv,.html,.json,.sql" />
+                  <div class="hint">PDF, DOCX, TXT, MD, CSV, HTML, JSON, or a <b>.sql database dump</b> — up to 20 MB.</div></div>
+                <button class="btn ghost" onclick="uploadSource()">Upload &amp; index</button>
+              </div>
+              <div>
+                <div class="field"><label>Q&amp;A pair</label>
+                  <input type="text" id="qaQuestion" placeholder="Question, e.g. Do you ship internationally?" style="margin-bottom:8px" />
+                  <textarea id="qaAnswer" rows="2" placeholder="The exact answer the bot should learn"></textarea></div>
+                <button class="btn ghost" onclick="addQA()">Add Q&amp;A</button>
+              </div>
+              <div class="field full"><label>Raw text snippet</label>
+                <textarea id="srcText" rows="3" placeholder="Paste policies, FAQs, product details..."></textarea>
+                <button class="btn ghost" style="margin-top:8px" onclick="addText()">Index text</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Sources</h3></div>
+          <div class="card-body flush">
+            <table id="sourcesT"><thead><tr><th>Title</th><th>Kind</th><th class="num">Chars</th><th class="num">Chunks</th><th>Added</th><th></th></tr></thead><tbody></tbody></table>
+            <div class="empty" id="sourcesEmpty" style="display:none"><span class="microlabel">No extra sources</span>Everything indexed so far came from the crawler.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Indexed pages</h3><span class="meta-inline">From the crawler</span></div>
+          <div class="card-body flush">
+            <table id="pagesT"><thead><tr><th>URL</th><th class="num">Chunks</th><th>Indexed</th><th></th></tr></thead><tbody></tbody></table>
+            <div class="empty" id="pagesEmpty" style="display:none"><span class="microlabel">Nothing indexed</span>Run a crawl from the site header.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- actions -->
+      <div class="tabpane" id="tab-actions">
+        <div class="card">
+          <div class="card-head"><h3>AI Actions</h3><span class="meta-inline">Live tools the bot can call mid-answer — order lookups, booking links...</span></div>
+          <div class="card-body flush">
+            <table id="actionsT"><thead><tr><th>Name</th><th>Kind</th><th>Endpoint</th><th>Enabled</th><th></th></tr></thead><tbody></tbody></table>
+            <div class="empty" id="actionsEmpty" style="display:none"><span class="microlabel">No actions yet</span>Add one below — the bot decides when to use it.</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Add an action</h3></div>
+          <div class="card-body">
+            <div class="formgrid">
+              <div class="field"><label>Name (a-z, 0-9, _)</label><input type="text" id="acName" placeholder="order_status" /></div>
+              <div class="field"><label>Kind</label><select id="acKind"><option value="http">HTTP call — fetch live data</option><option value="link">Link — hand the visitor a URL</option></select></div>
+              <div class="field full"><label>Description (the bot uses this to decide when to call it)</label>
+                <input type="text" id="acDesc" placeholder="Look up the status of an order by its order number" /></div>
+              <div class="field"><label>Method</label><select id="acMethod"><option>GET</option><option>POST</option></select></div>
+              <div class="field"><label>URL (use {param} placeholders)</label><input type="url" id="acUrl" placeholder="https://api.acme.com/orders/{order_id}" /></div>
+              <div class="field full"><label>Parameters — JSON</label>
+                <textarea id="acParams" rows="3">[{"name": "order_id", "description": "the visitor's order number", "required": true}]</textarea></div>
+              <div class="field full"><label>Static headers — JSON (API keys etc, never exposed)</label>
+                <textarea id="acHeaders" rows="2">{}</textarea></div>
+            </div>
+            <button class="btn" onclick="createAction()">Add action</button>
+            <span class="hint" style="margin-left:12px">HTTP actions must call public endpoints — private hosts are rejected.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- security -->
+      <div class="tabpane" id="tab-security">
+        <div class="card">
+          <div class="card-head"><h3>Secrets Guardian</h3>
+            <span style="display:flex;align-items:center;gap:12px">
+              <span class="meta-inline"><b id="guardBlocks">0</b> attempts blocked</span>
+              <button class="btn" onclick="saveSecurity()">Save</button>
+            </span></div>
+          <div class="card-body">
+            <label class="check"><input type="checkbox" id="g_enabled" /> Enable the Secrets Guardian for this site</label>
+            <div class="hint" style="margin:-2px 0 16px">
+              Defense-in-depth, independent of the model: secret-bearing content is filtered out of retrieval,
+              the finished answer is deterministically scanned for your secrets (this holds even if the model is
+              jailbroken), and an optional AI auditor catches paraphrased or translated leaks. Your literal
+              secrets are used only for scanning — they are never sent to any model.
+            </div>
+
+            <div class="fieldset-title">Never reveal — literal secrets</div>
+            <label>One per line: API keys, internal URLs, unpublished prices, coupon codes, anything exact.</label>
+            <textarea id="g_secrets" rows="5" placeholder="sk-internal-9f83...&#10;https://admin.internal.acme.com&#10;WHOLESALE price 4200"></textarea>
+            <div class="hint">Matched case-insensitively and resistant to spacing/punctuation obfuscation. If any appears in an answer, the whole answer is replaced with the refusal below.</div>
+
+            <div class="fieldset-title">Never reveal — confidential topics</div>
+            <label>One per line, plain language. Fed to the model and the AI auditor (not the literal scanner).</label>
+            <textarea id="g_topics" rows="4" placeholder="our profit margins and unit costs&#10;employee names, salaries, and personal data&#10;details of unreleased products"></textarea>
+
+            <div class="fieldset-title">Enforcement</div>
+            <label class="check"><input type="checkbox" id="g_llm_audit" /> Run the AI confidentiality auditor on every answer (catches paraphrase/translation leaks)</label>
+            <label>Refusal message shown when a leak is blocked</label>
+            <input type="text" id="g_refusal" placeholder="I'm sorry, but I can't share that information." />
+            <div class="hint">A detected jailbreak attempt forces the auditor on even if unchecked. Guarded answers are never cached.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- playground -->
+      <div class="tabpane" id="tab-playground">
+        <div class="card">
+          <div class="card-head"><h3>Playground</h3>
+            <button class="btn ghost" onclick="resetPlayground()">New conversation</button></div>
+          <div class="transcript" id="pgTranscript" style="min-height:220px"></div>
+          <div class="card-body" style="border-top:1px solid var(--line); padding:12px 18px">
+            <div style="display:flex; gap:8px">
+              <input type="text" id="pgInput" placeholder="Ask the bot anything — tests the full pipeline" onkeydown="if(event.key==='Enter')pgSend()" />
+              <button class="btn" id="pgSendBtn" onclick="pgSend()">Send</button>
+            </div>
+            <div class="hint" style="margin-top:6px">Runs retrieval, guardrails, memory, and the site's model exactly like the widget. Conversations are tagged <span class="num">playground</span>.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- unanswered -->
+      <div class="tabpane" id="tab-unanswered">
+        <div class="card">
+          <div class="card-head"><h3>Unanswered questions</h3><span class="meta-inline">Content gaps — add pages or canned answers to cover these</span></div>
+          <div class="card-body flush" id="unansweredT"></div>
+        </div>
+      </div>
+
+      <!-- leads -->
+      <div class="tabpane" id="tab-leads">
+        <div class="card">
+          <div class="card-head"><h3>Captured leads</h3></div>
+          <div class="card-body flush">
+            <table id="leadsT"><thead><tr><th>Email</th><th>Name</th><th>Note</th><th>When</th></tr></thead><tbody></tbody></table>
+            <div class="empty" id="leadsEmpty" style="display:none"><span class="microlabel">No leads yet</span>Turn on lead capture in Settings — the widget asks for an email at high-intent moments.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- handoffs -->
+      <div class="tabpane" id="tab-handoffs">
+        <div class="card">
+          <div class="card-head"><h3>Handoff requests</h3></div>
+          <div class="card-body flush">
+            <table id="handoffsT"><thead><tr><th>Email</th><th>Message</th><th>Status</th><th>When</th></tr></thead><tbody></tbody></table>
+            <div class="empty" id="handoffsEmpty" style="display:none"><span class="microlabel">No handoffs yet</span>Visitors can request a human when handoff is enabled in Settings.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- conversations -->
+      <div class="tabpane" id="tab-conversations">
+        <div class="card">
+          <div class="card-head"><h3>Recent conversations</h3>
+            <span style="display:flex;gap:8px">
+              <button class="btn ghost" onclick="exportConv('csv')">Export CSV</button>
+              <button class="btn ghost" onclick="exportConv('json')">Export JSON</button>
+            </span></div>
+          <div class="card-body flush">
+            <table id="convT"><thead><tr><th class="num">#</th><th>Visitor</th><th class="num">Messages</th><th>Started</th></tr></thead><tbody></tbody></table>
+            <div class="empty" id="convEmpty" style="display:none"><span class="microlabel">Nothing yet</span>Conversations appear here as soon as the widget answers its first question.</div>
+          </div>
+        </div>
+        <div class="card" id="transcriptCard" style="display:none">
+          <div class="card-head"><h3 id="transcriptTitle">Conversation</h3><span class="meta-inline">Replies appear live in the visitor's widget</span></div>
+          <div class="transcript" id="transcript"></div>
+          <div class="card-body" style="border-top:1px solid var(--line); padding:12px 18px">
+            <div style="display:flex; gap:8px">
+              <input type="text" id="replyInput" placeholder="Reply as the support team..." onkeydown="if(event.key==='Enter')sendReply()" />
+              <button class="btn" onclick="sendReply()">Reply</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- settings -->
+      <div class="tabpane" id="tab-settings">
+        <div class="card">
+          <div class="card-head"><h3>Site settings</h3><button class="btn" onclick="saveSettings()">Save changes</button></div>
+          <div class="card-body">
+            <div class="formgrid">
+              <div class="fieldset-title">Widget appearance</div>
+              <div class="field"><label>Display name</label><input type="text" id="s_display_name" /></div>
+              <div class="field"><label>Theme color</label><input type="text" id="s_theme_color" placeholder="#1d5c46" /></div>
+              <div class="field"><label>Position</label><select id="s_widget_position"><option value="right">Bottom right</option><option value="left">Bottom left</option></select></div>
+              <div class="field"><label>Widget language</label>
+                <select id="s_widget_language">
+                  <option value="en">English</option><option value="es">Español</option>
+                  <option value="fr">Français</option><option value="de">Deutsch</option>
+                  <option value="hi">हिन्दी</option><option value="pt">Português</option>
+                </select>
+                <div class="hint">Button labels and placeholders. Answers already follow the visitor's language.</div></div>
+              <div class="field"><label>Avatar URL</label><input type="url" id="s_avatar_url" placeholder="https://..." /></div>
+              <div class="field"><label>Avatar animation</label>
+                <select id="s_avatar_style">
+                  <option value="">Static</option>
+                  <option value="pulse">Pulse while speaking</option>
+                  <option value="bounce">Bounce while speaking</option>
+                </select>
+                <div class="hint">Animates the avatar persona while the bot composes or speaks (with voice on).</div></div>
+              <div class="field full"><label>Welcome message</label><input type="text" id="s_welcome_message" /></div>
+              <div class="field full"><label>Suggested questions <span class="hint" style="display:inline">— one per line, first 4 shown</span></label>
+                <textarea id="s_suggested_questions"></textarea></div>
+
+              <div class="fieldset-title">Crawling &amp; access</div>
+              <div class="field"><label>Re-crawl every N hours</label><input type="number" id="s_recrawl_hours" min="0" />
+                <div class="hint">0 disables scheduled re-crawls.</div></div>
+              <div class="field"><label>Allowed origins</label><input type="text" id="s_allowed_origins" placeholder="https://www.acme.com" />
+                <div class="hint">Comma separated. Empty allows any origin.</div></div>
+
+              <div class="fieldset-title">AI model &amp; behaviour</div>
+              <div class="field"><label>Model provider</label>
+                <select id="s_model_provider">
+                  <option value="">Server default</option>
+                  <option value="anthropic">Anthropic (Claude)</option>
+                  <option value="openai">OpenAI (GPT)</option>
+                  <option value="gemini">Google Gemini</option>
+                  <option value="openai_compatible">OpenAI-compatible (Ollama, Groq...)</option>
+                </select></div>
+              <div class="field"><label>Model name</label><input type="text" id="s_model_name" placeholder="leave empty for server default" /></div>
+              <div class="field"><label>Conversation memory (turns)</label><input type="number" id="s_history_turns" min="0" max="20" />
+                <div class="hint">Prior Q&amp;A pairs sent to the model. 0 disables memory.</div></div>
+              <div class="field"><label>Retention (days)</label><input type="number" id="s_retention_days" min="0" />
+                <div class="hint">Conversations older than this are purged nightly. 0 keeps forever.</div></div>
+              <div class="field full"><label>Custom instructions</label>
+                <textarea id="s_custom_instructions" rows="3" placeholder="e.g. Always mention the 30-day free trial when pricing comes up."></textarea></div>
+
+              <div style="grid-column:1/-1">
+                <label class="check"><input type="checkbox" id="s_followups_enabled" /> Suggest follow-up questions after each answer</label>
+                <div class="hint" style="margin-top:-4px;margin-bottom:10px">One extra short model call per answered message.</div>
+              </div>
+
+              <div class="fieldset-title">Channels &amp; digests</div>
+              <div class="field">
+                <label>Telegram bot token <span class="pill ok" id="tgStatus" style="display:none">connected</span></label>
+                <input type="password" id="tgToken" placeholder="123456:ABC-DEF... (from @BotFather)" />
+                <div style="display:flex;gap:8px;margin-top:8px">
+                  <button class="btn ghost" onclick="connectTelegram()">Connect</button>
+                  <button class="btn ghost" onclick="disconnectTelegram()">Disconnect</button>
+                </div>
+              </div>
+              <div class="field">
+                <label>Slack <span class="pill ok" id="slackStatus" style="display:none">connected</span></label>
+                <input type="password" id="s_slack_bot_token" placeholder="Bot token (xoxb-...)" style="margin-bottom:8px" />
+                <input type="password" id="s_slack_signing_secret" placeholder="Signing secret" />
+                <div class="hint">Point your Slack app's event subscription at <span class="num" id="slackWebhookUrl"></span></div>
+              </div>
+              <div class="field full">
+                <label>WhatsApp (Meta Cloud API) <span class="pill ok" id="waStatus" style="display:none">connected</span></label>
+                <div class="formgrid" style="gap:0 12px">
+                  <input type="password" id="waToken" placeholder="Access token" style="margin-bottom:8px" />
+                  <input type="text" id="waPhoneId" placeholder="Phone number ID" style="margin-bottom:8px" />
+                  <input type="text" id="waVerify" placeholder="Verify token (any string you choose)" style="margin-bottom:8px" />
+                  <input type="password" id="waSecret" placeholder="App secret (for signature checks, optional)" style="margin-bottom:8px" />
+                </div>
+                <div style="display:flex;gap:8px">
+                  <button class="btn ghost" onclick="connectWhatsApp()">Connect</button>
+                  <button class="btn ghost" onclick="disconnectWhatsApp()">Disconnect</button>
+                </div>
+                <div class="hint">Callback URL: <span class="num" id="waWebhookUrl"></span></div>
+              </div>
+              <div class="field full">
+                <label>SMS — Twilio <span class="pill ok" id="smsStatus" style="display:none">connected</span></label>
+                <div class="formgrid" style="gap:0 12px">
+                  <input type="text" id="s_twilio_account_sid" placeholder="Account SID (AC...)" style="margin-bottom:8px" />
+                  <input type="password" id="s_twilio_auth_token" placeholder="Auth token" style="margin-bottom:8px" />
+                  <input type="text" id="s_twilio_from" placeholder="From number (+1...)" style="margin-bottom:8px" />
+                </div>
+                <div class="hint">Set your Twilio number's inbound SMS webhook to <span class="num" id="smsWebhookUrl"></span></div>
+              </div>
+              <div class="field full">
+                <label>Facebook Messenger / Instagram <span class="pill ok" id="messengerStatus" style="display:none">connected</span></label>
+                <div class="formgrid" style="gap:0 12px">
+                  <input type="password" id="s_messenger_page_token" placeholder="Page access token" style="margin-bottom:8px" />
+                  <input type="text" id="s_messenger_verify_token" placeholder="Verify token (any string)" style="margin-bottom:8px" />
+                  <input type="password" id="s_messenger_app_secret" placeholder="App secret" style="margin-bottom:8px" />
+                </div>
+                <div class="hint">Callback URL: <span class="num" id="messengerWebhookUrl"></span></div>
+              </div>
+              <div class="field full">
+                <label>Microsoft Teams <span class="pill ok" id="teamsStatus" style="display:none">connected</span></label>
+                <div class="formgrid" style="gap:0 12px">
+                  <input type="text" id="s_teams_app_id" placeholder="Bot app ID" style="margin-bottom:8px" />
+                  <input type="password" id="s_teams_app_password" placeholder="Bot app password" style="margin-bottom:8px" />
+                </div>
+                <div class="hint">Messaging endpoint: <span class="num" id="teamsWebhookUrl"></span></div>
+              </div>
+              <div class="field"><label>Email alerts to <span class="pill ok" id="emailStatus" style="display:none">SMTP ready</span></label>
+                <input type="email" id="s_notify_email" placeholder="you@company.com — new leads & handoffs" />
+                <div class="hint">Requires platform SMTP (SMTP_HOST env).</div></div>
+              <div class="field"><label>Weekly digest delivery</label>
+                <select id="s_digest_channel"><option value="webhook">Webhook</option><option value="email">Email (to the address above)</option></select></div>
+              <div class="field full"><label>Weekly digest webhook</label>
+                <input type="url" id="s_digest_webhook_url" placeholder="Slack/Zapier URL — receives a 7-day summary every Monday" /></div>
+
+              <div class="fieldset-title">Proactive engagement</div>
+              <div class="field"><label>Teaser message</label><input type="text" id="s_proactive_message" placeholder="Hi! Need help finding anything?" /></div>
+              <div class="field"><label>Show after (seconds)</label><input type="number" id="s_proactive_delay_s" min="0" />
+                <div class="hint">0 disables the teaser bubble.</div></div>
+
+              <div class="fieldset-title">Answer quality</div>
+              <div class="field"><label>Minimum retrieval confidence</label><input type="number" id="s_min_confidence" min="0" max="1" step="0.05" />
+                <div class="hint">0–1. Below this the bot admits it doesn't know.</div></div>
+              <div class="field"><label>Tone of voice</label><input type="text" id="s_tone" placeholder="warm and playful" /></div>
+              <div class="field full"><label>Blocked topics — one per line</label><textarea id="s_blocked_topics"></textarea></div>
+              <div class="field full"><label>Canned answers — JSON</label><textarea id="s_canned_answers" rows="4"></textarea>
+                <div class="hint num">[{"pattern": "refund", "answer": "We offer 30-day refunds."}]</div></div>
+
+              <div class="fieldset-title">Lead capture &amp; handoff</div>
+              <div>
+                <label class="check"><input type="checkbox" id="s_lead_capture_enabled" /> Lead capture enabled</label>
+                <div class="field"><label>Lead prompt</label><input type="text" id="s_lead_prompt" /></div>
+                <div class="field"><label>Lead webhook URL</label><input type="url" id="s_lead_webhook_url" placeholder="Slack / Zapier / your endpoint" /></div>
+              </div>
+              <div>
+                <label class="check"><input type="checkbox" id="s_handoff_enabled" /> Human handoff enabled</label>
+                <div class="field"><label>Handoff webhook URL</label><input type="url" id="s_handoff_webhook_url" /></div>
+                <label class="check" style="margin-top:18px"><input type="checkbox" id="s_hide_branding" /> Hide “Powered by SiteBot”</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+var KEY = localStorage.getItem("sitebot_admin_key") || "";
+var currentSlug = null;
+var currentPk = "";
+
+function $(id) { return document.getElementById(id); }
+function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
+function toast(msg, bad) {
+  var t = $("toast"); t.textContent = msg; t.className = bad ? "bad" : "";
+  t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(function(){ t.style.display = "none"; }, 3200);
+}
+function api(path, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({"X-API-Key": KEY, "Content-Type": "application/json"}, opts.headers || {});
+  return fetch(path, opts).then(function (r) {
+    if (r.status === 401) { logout(); throw new Error("Invalid key"); }
+    return r.json().then(function (j) { if (!r.ok) throw new Error(j.detail || "Request failed"); return j; });
+  });
+}
+function fmtDate(iso) { return iso ? new Date(iso).toLocaleString(undefined, {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"}) : "—"; }
+
+/* ------------------------------ auth ------------------------------ */
+function login() {
+  KEY = $("apiKey").value.trim();
+  if (!KEY) return;
+  localStorage.setItem("sitebot_admin_key", KEY);
+  boot();
+}
+function emailLogin() {
+  var email = $("loginEmail").value.trim(), pw = $("loginPw").value;
+  if (!email || !pw) { toast("Enter email and password", true); return; }
+  fetch("/v1/auth/login", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({email: email, password: pw})})
+    .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.detail || "Login failed"); return j; }); })
+    .then(function (j) { KEY = j.session_token; localStorage.setItem("sitebot_admin_key", KEY); boot(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+var inboxWs = null;
+function watchInbox(slug) {
+  if (inboxWs) { try { inboxWs.close(); } catch (e) {} inboxWs = null; }
+  try {
+    var proto = location.protocol === "https:" ? "wss://" : "ws://";
+    inboxWs = new WebSocket(proto + location.host + "/v1/ws/sites/" + slug + "/inbox?key=" + encodeURIComponent(KEY));
+    inboxWs.onmessage = function (ev) {
+      var m = JSON.parse(ev.data);
+      if (m.role === "user") toast("New visitor message: " + m.content.slice(0, 60));
+      var pane = $("tab-conversations");
+      if (pane && pane.classList.contains("on")) loadConversations();
+    };
+  } catch (e) { /* live push is an enhancement; polling views still work */ }
+}
+function downloadReport(kind) {
+  fetch("/v1/sites/" + currentSlug + "/reports/" + kind + ".csv", {headers: {"X-API-Key": KEY}})
+    .then(function (r) { if (!r.ok) throw new Error("Export failed (" + r.status + ")"); return r.blob(); })
+    .then(function (b) {
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(b);
+      a.download = currentSlug + "-" + kind + ".csv";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }).catch(function (e) { toast(e.message, true); });
+}
+function downloadMyData() {
+  fetch("/v1/tenants/me/export", {headers: {"X-API-Key": KEY}})
+    .then(function (r) { if (!r.ok) throw new Error("Export failed (" + r.status + ")"); return r.blob(); })
+    .then(function (b) {
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(b); a.download = "sitebot-export.json"; a.click();
+      URL.revokeObjectURL(a.href);
+    }).catch(function (e) { toast(e.message, true); });
+}
+function logout() {
+  localStorage.removeItem("sitebot_admin_key"); KEY = "";
+  $("app").classList.remove("on"); $("login").style.display = "flex";
+}
+
+function boot() {
+  api("/v1/tenants/me").then(function (me) {
+    $("login").style.display = "none"; $("app").classList.add("on");
+    if (me.is_admin) {
+      $("who").textContent = "Global admin";
+      $("whoPlan").textContent = "all tenants visible";
+      $("accountKpis").innerHTML = "";
+      $("accountKpis").style.display = "none";
+      $("rotateCard").style.display = "none";  // admin key is not a tenant key
+    } else {
+      $("who").textContent = me.name;
+      $("whoPlan").textContent = me.plan + " plan";
+      var quota = me.monthly_quota
+        ? me.messages_used_this_month.toLocaleString() + " <small>/ " + me.monthly_quota.toLocaleString() + "</small>"
+        : me.messages_used_this_month.toLocaleString();
+      $("accountKpis").style.display = "";
+      $("accountKpis").innerHTML =
+        kpi(esc(me.plan), "plan") +
+        kpi(quota, "messages this month") +
+        kpi(esc(me.billing_status || "none"), "billing status");
+    }
+    loadSites();
+  }).catch(function (e) { toast(e.message, true); });
+}
+
+function kpi(n, l) { return "<div class='kpi'><div class='n'>" + n + "</div><div class='l'>" + esc(l) + "</div></div>"; }
+
+/* ------------------------------ sites ------------------------------ */
+function switchView(id, navId) {
+  document.querySelectorAll(".view").forEach(function (v) { v.classList.remove("on"); });
+  $(id).classList.add("on");
+  $("nav-sites").classList.remove("active");
+  $("nav-team").classList.remove("active");
+  document.querySelectorAll("#sitenav .navitem").forEach(function (b) { b.classList.remove("active"); });
+  if (navId) $(navId).classList.add("active");
+}
+
+function showSites() {
+  currentSlug = null;
+  $("sitenav").classList.remove("on");
+  switchView("view-sites", "nav-sites");
+  loadSites();
+}
+
+/* ------------------------------ team ------------------------------ */
+function showTeam() {
+  currentSlug = null;
+  $("sitenav").classList.remove("on");
+  switchView("view-team", "nav-team");
+  loadTeamKeys();
+}
+function loadTeamKeys() {
+  api("/v1/tenants/me/keys").then(function (rows) {
+    $("teamEmpty").style.display = rows.length ? "none" : "";
+    $("teamT").querySelector("tbody").innerHTML = rows.map(function (r) {
+      return "<tr><td>" + esc(r.name) + "</td><td><span class='pill " +
+        (r.role === "admin" ? "ok" : "busy") + "'>" + esc(r.role) + "</span></td>" +
+        "<td class='meta-inline'>" + fmtDate(r.created_at) + "</td>" +
+        "<td class='meta-inline'>" + (r.last_used_at ? fmtDate(r.last_used_at) : "never") + "</td>" +
+        "<td style='text-align:right'><button class='btn ghost' onclick='revokeTeamKey(" + r.id + ")'>Revoke</button></td></tr>";
+    }).join("");
+  }).catch(function (e) { toast(e.message, true); });
+}
+function createTeamKey() {
+  var name = $("tkName").value.trim();
+  if (!name) { toast("Give the key a name", true); return; }
+  api("/v1/tenants/me/keys", {method: "POST", body: JSON.stringify({name: name, role: $("tkRole").value})})
+    .then(function (r) {
+      $("tkResult").innerHTML = "Key created — copy it now, it is not shown again:<br>" +
+        "<span class='num' style='user-select:all;background:var(--paper);border:1px solid var(--line);padding:3px 8px;border-radius:6px;display:inline-block;margin-top:6px'>" +
+        esc(r.api_key) + "</span>";
+      $("tkName").value = "";
+      loadTeamKeys();
+    }).catch(function (e) { toast(e.message, true); });
+}
+function revokeTeamKey(id) {
+  api("/v1/tenants/me/keys/" + id, {method: "DELETE"})
+    .then(function () { toast("Key revoked"); loadTeamKeys(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+function upgrade(plan) {
+  // price_id: operators map real Stripe price ids via STRIPE_PRICE_MAP_JSON;
+  // the plan name works as the id when the map uses plan-named prices.
+  api("/v1/billing/checkout", {method: "POST", body: JSON.stringify(
+    {price_id: plan, success_url: location.href, cancel_url: location.href})})
+    .then(function (r) {
+      if (r.checkout_url) { window.open(r.checkout_url, "_blank"); }
+      else { $("billResult").textContent = r.detail || "Checkout is not configured on this platform yet."; }
+    }).catch(function (e) { $("billResult").textContent = e.message; });
+}
+function createUser() {
+  var email = $("nuEmail").value.trim(), pw = $("nuPw").value;
+  if (!email || pw.length < 10) { toast("Email and a 10+ char password required", true); return; }
+  api("/v1/auth/register", {method: "POST", body: JSON.stringify({email: email, password: pw})})
+    .then(function (r) {
+      $("nuResult").textContent = "Login created for " + r.email + " — they can now sign in with email + password.";
+      $("nuEmail").value = ""; $("nuPw").value = "";
+    }).catch(function (e) { toast(e.message, true); });
+}
+function rotateMyKey() {
+  if (!confirm("Rotate your access key? Your current key stops working immediately and you'll be signed out.")) return;
+  api("/v1/tenants/me/rotate-key", {method: "POST"})
+    .then(function (r) {
+      $("rotateResult").innerHTML = "New key — copy it now, it is not shown again:<br>" +
+        "<span class='num' style='user-select:all;background:var(--paper);border:1px solid var(--line);padding:3px 8px;border-radius:6px;display:inline-block;margin:6px 0'>" +
+        esc(r.api_key) + "</span><br>Sign in again with this key.";
+      toast("Key rotated — sign in again with the new key");
+    }).catch(function (e) { toast(e.message, true); });
+}
+
+/* ------------------------------ channels ------------------------------ */
+function connectTelegram() {
+  var token = $("tgToken").value.trim();
+  if (!token) { toast("Paste the bot token from @BotFather", true); return; }
+  api("/v1/sites/" + currentSlug + "/channels/telegram", {method: "POST", body: JSON.stringify({bot_token: token})})
+    .then(function (r) {
+      $("tgStatus").style.display = "";
+      $("tgToken").value = "";
+      toast(r.note ? "Token saved — " + r.note : "Telegram connected");
+    }).catch(function (e) { toast(e.message, true); });
+}
+function disconnectTelegram() {
+  api("/v1/sites/" + currentSlug + "/channels/telegram", {method: "DELETE"})
+    .then(function () { $("tgStatus").style.display = "none"; toast("Telegram disconnected"); })
+    .catch(function (e) { toast(e.message, true); });
+}
+
+function loadSites() {
+  api("/v1/sites").then(function (sites) {
+    var tb = $("sitesTable").querySelector("tbody");
+    tb.innerHTML = "";
+    $("sitesEmpty").style.display = sites.length ? "none" : "";
+    sites.forEach(function (s) {
+      var cls = s.status === "ready" ? "ok" : (s.status === "error" ? "err" : "busy");
+      var tr = document.createElement("tr");
+      tr.className = "rowlink";
+      tr.innerHTML = "<td class='num' style='font-size:13px'>" + esc(s.slug) + "</td>" +
+        "<td><span class='pill " + cls + "'>" + esc(s.status) + "</span></td>" +
+        "<td class='num'>" + s.pages_indexed + "</td><td class='num'>" + s.chunks_indexed + "</td>" +
+        "<td class='meta-inline'>" + fmtDate(s.last_indexed_at) + "</td>" +
+        "<td style='text-align:right;color:var(--muted)'>→</td>";
+      tr.onclick = function () { openSite(s.slug); };
+      tb.appendChild(tr);
+    });
+  }).catch(function (e) { toast(e.message, true); });
+}
+
+function createSite() {
+  var name = $("newName").value.trim(), url = $("newUrl").value.trim();
+  if (!name || !url) { toast("Name and URL are required", true); return; }
+  api("/v1/sites", {method: "POST", body: JSON.stringify({name: name, start_url: url})})
+    .then(function (r) {
+      toast("Site created — crawling " + r.slug);
+      return api("/v1/sites/" + r.slug + "/ingest", {method: "POST"});
+    })
+    .then(function () { $("newName").value = ""; $("newUrl").value = ""; loadSites(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+
+/* ------------------------------ site view ------------------------------ */
+function openSite(slug) {
+  currentSlug = slug;
+  watchInbox(slug);
+  switchView("view-site", null);
+  $("sitenav").classList.add("on");
+  $("navSiteName").textContent = slug;
+  api("/v1/sites/" + slug).then(function (s) {
+    currentPk = s.public_key;
+    $("siteTitle").textContent = s.slug;
+    var bits = [s.pages_indexed + " pages", s.chunks_indexed + " chunks"];
+    if (s.last_indexed_at) bits.push("indexed " + fmtDate(s.last_indexed_at));
+    if (s.last_error) bits.push("error: " + s.last_error);
+    $("siteMeta").innerHTML = "<span class='pill " +
+      (s.status === "ready" ? "ok" : (s.status === "error" ? "err" : "busy")) + "'>" + esc(s.status) + "</span>" +
+      "&nbsp;&nbsp;" + esc(bits.join("  ·  "));
+    $("embedSnippet").innerHTML =
+      '&lt;script <span class="attr">src</span>="' + esc(location.origin) + '/widget.js"\n' +
+      '        <span class="attr">data-key</span>="' + esc(s.public_key) + '"\n' +
+      '        <span class="attr">data-api</span>="' + esc(location.origin) + '"&gt;&lt;/script&gt;';
+    fillSettings(s);
+    showTab("analytics");
+    window.scrollTo({top: 0});
+  }).catch(function (e) { toast(e.message, true); });
+}
+
+function copySnippet() {
+  var text = '<script src="' + location.origin + '/widget.js"\n        data-key="' + currentPk +
+             '"\n        data-api="' + location.origin + '"><\/script>';
+  navigator.clipboard.writeText(text).then(function () { toast("Snippet copied"); });
+}
+
+function reindex(full) {
+  api("/v1/sites/" + currentSlug + "/ingest" + (full ? "?full=true" : ""), {method: "POST"})
+    .then(function (r) { toast(full ? "Full re-index queued" : "Re-crawl queued"); })
+    .catch(function (e) { toast(e.message, true); });
+}
+
+function showTab(name) {
+  document.querySelectorAll(".tabpane").forEach(function (el) { el.classList.remove("on"); });
+  document.querySelectorAll("#sitenav .navitem").forEach(function (b) {
+    b.classList.toggle("active", b.dataset.tab === name);
+  });
+  $("tab-" + name).classList.add("on");
+  $("embedCard").style.display = name === "analytics" ? "" : "none";
+  if (name === "analytics") loadAnalytics();
+  if (name === "knowledge") loadKnowledge();
+  if (name === "actions") loadActions();
+  if (name === "security") loadSecurity();
+  if (name === "unanswered") loadUnanswered();
+  if (name === "leads") loadLeads();
+  if (name === "handoffs") loadHandoffs();
+  if (name === "conversations") loadConversations();
+}
+
+/* ------------------------------ knowledge ------------------------------ */
+function loadKnowledge() {
+  api("/v1/sites/" + currentSlug).then(function (s) {
+    $("kbStartUrl").value = s.start_url || "";
+    $("kbExtraUrls").value = (s.extra_urls || []).join("\n");
+  });
+  api("/v1/sites/" + currentSlug + "/sources").then(function (rows) {
+    $("sourcesEmpty").style.display = rows.length ? "none" : "";
+    $("sourcesT").querySelector("tbody").innerHTML = rows.map(function (r) {
+      return "<tr><td>" + esc(r.title) + "</td><td><span class='pill ok'>" + esc(r.kind) + "</span></td>" +
+        "<td class='num'>" + r.chars.toLocaleString() + "</td><td class='num'>" + r.chunks + "</td>" +
+        "<td class='meta-inline'>" + fmtDate(r.created_at) + "</td>" +
+        "<td style='text-align:right'><button class='btn ghost' onclick='deleteSource(" + r.id + ")'>Delete</button></td></tr>";
+    }).join("");
+  });
+  api("/v1/sites/" + currentSlug + "/pages").then(function (rows) {
+    $("pagesEmpty").style.display = rows.length ? "none" : "";
+    $("pagesT").querySelector("tbody").innerHTML = rows.map(function (r) {
+      return "<tr><td class='num' style='font-size:12px;word-break:break-all'>" + esc(r.url) + "</td>" +
+        "<td class='num'>" + r.chunks + "</td><td class='meta-inline'>" + fmtDate(r.last_indexed) + "</td>" +
+        "<td style='text-align:right'><button class='btn ghost' onclick='deletePage(" + JSON.stringify(r.url) + ")'>Remove</button></td></tr>";
+    }).join("");
+  });
+}
+function saveSeedUrls() {
+  var start = $("kbStartUrl").value.trim();
+  if (!start) { toast("A primary website is required", true); return; }
+  var extra = $("kbExtraUrls").value.split("\n").map(function (x) { return x.trim(); }).filter(Boolean);
+  api("/v1/sites/" + currentSlug, {method: "PATCH", body: JSON.stringify({start_url: start, extra_urls: extra})})
+    .then(function () { toast("Saved — re-crawling all " + (extra.length + 1) + " site(s)"); reindex(false); })
+    .catch(function (e) { toast(e.message, true); });
+}
+function uploadSource() {
+  var f = $("srcFile").files[0];
+  if (!f) { toast("Choose a file first", true); return; }
+  var fd = new FormData();
+  fd.append("file", f);
+  fetch("/v1/sites/" + currentSlug + "/sources/upload", {
+    method: "POST", headers: {"X-API-Key": KEY}, body: fd,
+  }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.detail || "Upload failed"); return j; }); })
+    .then(function (s) { toast("Indexed " + s.chunks + " chunks from " + s.title); $("srcFile").value = ""; loadKnowledge(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+function addQA() {
+  var q = $("qaQuestion").value.trim(), a = $("qaAnswer").value.trim();
+  if (!q || !a) { toast("Both question and answer are required", true); return; }
+  api("/v1/sites/" + currentSlug + "/sources", {method: "POST", body: JSON.stringify({kind: "qa", question: q, answer: a})})
+    .then(function () { toast("Q&A added to the knowledge base"); $("qaQuestion").value = ""; $("qaAnswer").value = ""; loadKnowledge(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+function addText() {
+  var t = $("srcText").value.trim();
+  if (!t) { toast("Paste some text first", true); return; }
+  api("/v1/sites/" + currentSlug + "/sources", {method: "POST", body: JSON.stringify({kind: "text", text: t, title: t.slice(0, 60)})})
+    .then(function (s) { toast("Indexed " + s.chunks + " chunk(s)"); $("srcText").value = ""; loadKnowledge(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+function deleteSource(id) {
+  api("/v1/sites/" + currentSlug + "/sources/" + id, {method: "DELETE"})
+    .then(function () { toast("Source deleted"); loadKnowledge(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+function deletePage(url) {
+  api("/v1/sites/" + currentSlug + "/pages?url=" + encodeURIComponent(url), {method: "DELETE"})
+    .then(function () { toast("Page removed from the index"); loadKnowledge(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+
+/* ------------------------------ actions ------------------------------ */
+function loadActions() {
+  api("/v1/sites/" + currentSlug + "/actions").then(function (rows) {
+    $("actionsEmpty").style.display = rows.length ? "none" : "";
+    $("actionsT").querySelector("tbody").innerHTML = rows.map(function (a) {
+      var ep = a.kind === "link" ? a.url : a.method + " " + a.url;
+      return "<tr><td class='num' style='font-size:13px'>" + esc(a.name) + "</td>" +
+        "<td><span class='pill " + (a.kind === "http" ? "ok" : "busy") + "'>" + esc(a.kind) + "</span></td>" +
+        "<td class='num' style='font-size:12px;word-break:break-all'>" + esc(ep) + "</td>" +
+        "<td><label class='check' style='margin:0'><input type='checkbox' " + (a.enabled ? "checked" : "") +
+        " onchange='toggleAction(" + a.id + ", this.checked)' /></label></td>" +
+        "<td style='text-align:right'><button class='btn ghost' onclick='deleteAction(" + a.id + ")'>Delete</button></td></tr>";
+    }).join("");
+  }).catch(function (e) { toast(e.message, true); });
+}
+function createAction() {
+  var params, headers;
+  try { params = JSON.parse($("acParams").value || "[]"); } catch (e) { toast("Parameters is not valid JSON", true); return; }
+  try { headers = JSON.parse($("acHeaders").value || "{}"); } catch (e) { toast("Headers is not valid JSON", true); return; }
+  var body = {
+    name: $("acName").value.trim(), description: $("acDesc").value.trim(),
+    kind: $("acKind").value, method: $("acMethod").value,
+    url: $("acUrl").value.trim(), params: params, headers: headers
+  };
+  if (!body.name || !body.description || !body.url) { toast("Name, description, and URL are required", true); return; }
+  api("/v1/sites/" + currentSlug + "/actions", {method: "POST", body: JSON.stringify(body)})
+    .then(function () { toast("Action added"); $("acName").value = ""; $("acDesc").value = ""; $("acUrl").value = ""; loadActions(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+function toggleAction(id, enabled) {
+  api("/v1/sites/" + currentSlug + "/actions/" + id, {method: "PATCH", body: JSON.stringify({enabled: enabled})})
+    .then(function () { toast(enabled ? "Action enabled" : "Action disabled"); })
+    .catch(function (e) { toast(e.message, true); loadActions(); });
+}
+function deleteAction(id) {
+  api("/v1/sites/" + currentSlug + "/actions/" + id, {method: "DELETE"})
+    .then(function () { toast("Action deleted"); loadActions(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+
+/* ------------------------------ security ------------------------------ */
+function loadSecurity() {
+  api("/v1/sites/" + currentSlug).then(function (s) {
+    $("g_enabled").checked = !!s.guard_enabled;
+    $("g_secrets").value = (s.protected_secrets || []).join("\n");
+    $("g_topics").value = (s.protected_topics || []).join("\n");
+    $("g_llm_audit").checked = s.guard_llm_audit !== false;
+    $("g_refusal").value = s.guard_refusal_message || "";
+    $("guardBlocks").textContent = s.guard_blocks || 0;
+  }).catch(function (e) { toast(e.message, true); });
+}
+function saveSecurity() {
+  var lines = function (id) { return $(id).value.split("\n").map(function (x) { return x.trim(); }).filter(Boolean); };
+  var body = {
+    guard_enabled: $("g_enabled").checked,
+    protected_secrets: lines("g_secrets"),
+    protected_topics: lines("g_topics"),
+    guard_llm_audit: $("g_llm_audit").checked,
+    guard_refusal_message: $("g_refusal").value
+  };
+  api("/v1/sites/" + currentSlug, {method: "PATCH", body: JSON.stringify(body)})
+    .then(function () { toast("Security settings saved"); })
+    .catch(function (e) { toast(e.message, true); });
+}
+
+/* ------------------------------ whatsapp ------------------------------ */
+function connectWhatsApp() {
+  var body = {
+    token: $("waToken").value.trim(), phone_id: $("waPhoneId").value.trim(),
+    verify_token: $("waVerify").value.trim(), app_secret: $("waSecret").value.trim()
+  };
+  if (!body.token || !body.phone_id || !body.verify_token) { toast("Token, phone ID, and verify token are required", true); return; }
+  api("/v1/sites/" + currentSlug + "/channels/whatsapp", {method: "POST", body: JSON.stringify(body)})
+    .then(function (r) {
+      $("waStatus").style.display = "";
+      $("waToken").value = ""; $("waSecret").value = "";
+      toast("WhatsApp connected — register the callback URL in the Meta dashboard");
+    }).catch(function (e) { toast(e.message, true); });
+}
+function disconnectWhatsApp() {
+  api("/v1/sites/" + currentSlug + "/channels/whatsapp", {method: "DELETE"})
+    .then(function () { $("waStatus").style.display = "none"; toast("WhatsApp disconnected"); })
+    .catch(function (e) { toast(e.message, true); });
+}
+
+/* ------------------------------ playground ------------------------------ */
+var pgConversationId = null;
+function resetPlayground() { pgConversationId = null; $("pgTranscript").innerHTML = ""; }
+function pgBubble(role, text) {
+  var d = document.createElement("div");
+  d.className = "msg " + role;
+  d.textContent = text;
+  $("pgTranscript").appendChild(d);
+  d.scrollIntoView({block: "nearest"});
+  return d;
+}
+function pgSend() {
+  var text = $("pgInput").value.trim();
+  if (!text || $("pgSendBtn").disabled) return;
+  $("pgInput").value = "";
+  pgBubble("user", text);
+  var pending = pgBubble("assistant", "…");
+  $("pgSendBtn").disabled = true;
+  api("/v1/sites/" + currentSlug + "/playground", {
+    method: "POST", body: JSON.stringify({message: text, conversation_id: pgConversationId}),
+  }).then(function (r) {
+    pgConversationId = r.conversation_id;
+    pending.textContent = r.answer;
+    if (r.action) {
+      var badge = document.createElement("div");
+      badge.className = "hint num";
+      badge.style.marginTop = "6px";
+      badge.textContent = "action used: " + r.action;
+      pending.appendChild(badge);
+    }
+    if (r.sources && r.sources.length) {
+      var refs = r.sources.filter(function (s) { return s.url; }).map(function (s) { return s.title; });
+      if (refs.length) {
+        var meta = document.createElement("div");
+        meta.className = "hint num";
+        meta.style.marginTop = "6px";
+        meta.textContent = "sources: " + refs.slice(0, 3).join(" · ");
+        pending.appendChild(meta);
+      }
+    }
+  }).catch(function (e) { pending.textContent = "Error: " + e.message; })
+    .finally(function () { $("pgSendBtn").disabled = false; $("pgInput").focus(); });
+}
+
+/* ------------------------------ inbox & export ------------------------------ */
+var openConvId = null;
+function sendReply() {
+  var text = $("replyInput").value.trim();
+  if (!text || openConvId == null) return;
+  api("/v1/sites/" + currentSlug + "/conversations/" + openConvId + "/reply", {
+    method: "POST", body: JSON.stringify({message: text}),
+  }).then(function () {
+    $("replyInput").value = "";
+    var d = document.createElement("div");
+    d.className = "msg user";
+    d.style.background = "var(--amber)";
+    d.textContent = text;
+    $("transcript").appendChild(d);
+    toast("Reply sent — the visitor's widget will pick it up");
+  }).catch(function (e) { toast(e.message, true); });
+}
+function exportConv(format) {
+  fetch("/v1/sites/" + currentSlug + "/export/conversations?format=" + format, {headers: {"X-API-Key": KEY}})
+    .then(function (r) { if (!r.ok) throw new Error("Export failed"); return r.blob(); })
+    .then(function (blob) {
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = currentSlug + "-conversations." + format;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }).catch(function (e) { toast(e.message, true); });
+}
+
+/* ------------------------------ analytics ------------------------------ */
+function loadAnalytics() {
+  api("/v1/sites/" + currentSlug + "/analytics").then(function (a) {
+    var defl = a.deflection_rate == null ? "—" : Math.round(a.deflection_rate * 100) + "<small>%</small>";
+    $("statGrid").innerHTML =
+      kpi(a.conversations.toLocaleString(), "conversations") +
+      kpi(a.messages_answered.toLocaleString(), "messages") +
+      kpi(defl, "deflection rate") +
+      kpi(a.unanswered.toLocaleString(), "unanswered") +
+      kpi(a.leads.toLocaleString(), "leads") +
+      kpi(a.handoffs.toLocaleString(), "handoffs") +
+      kpi(a.feedback_up + " <small>/ " + a.feedback_down + "</small>", "helpful / not");
+    var days = a.messages_per_day || [];
+    var max = Math.max.apply(null, days.map(function (d) { return d.messages; }).concat([1]));
+    $("chart").innerHTML = days.map(function (d) {
+      return "<div class='bar' style='height:" + Math.max(3, Math.round(d.messages / max * 100)) + "%'><span>" +
+             esc(d.day) + " · " + d.messages + "</span></div>";
+    }).join("") || "<div class='empty' style='width:100%'>No messages yet.</div>";
+    $("chartAxis").innerHTML = days.length
+      ? "<span>" + esc(days[0].day) + "</span><span>peak " + max + "/day</span><span>" + esc(days[days.length - 1].day) + "</span>"
+      : "";
+  }).catch(function (e) { toast(e.message, true); });
+  api("/v1/sites/" + currentSlug + "/analytics/top-questions").then(function (rows) {
+    $("topQ").innerHTML = rows.map(function (r) {
+      return "<div class='qrow'><span class='q'>" + esc(r.question) + "</span><span class='c'>" + r.count + "×</span></div>";
+    }).join("") || "<div class='empty'><span class='microlabel'>Nothing yet</span>Questions appear once visitors start chatting.</div>";
+  });
+}
+
+/* ------------------------------ tabs ------------------------------ */
+function loadUnanswered() {
+  api("/v1/sites/" + currentSlug + "/analytics/unanswered").then(function (rows) {
+    $("unansweredT").innerHTML = rows.map(function (r) {
+      return "<div class='qrow'><span class='q'>" + esc(r.question) + "</span><span class='c'>" + fmtDate(r.asked_at) + "</span></div>";
+    }).join("") || "<div class='empty'><span class='microlabel'>All clear</span>Every question in the window was answered from the knowledge base.</div>";
+  });
+}
+function loadLeads() {
+  api("/v1/sites/" + currentSlug + "/leads").then(function (rows) {
+    $("leadsEmpty").style.display = rows.length ? "none" : "";
+    $("leadsT").querySelector("tbody").innerHTML = rows.map(function (r) {
+      return "<tr><td class='num' style='font-size:13px'>" + esc(r.email) + "</td><td>" + esc(r.name) + "</td><td>" +
+             esc(r.note) + "</td><td class='meta-inline'>" + fmtDate(r.created_at) + "</td></tr>";
+    }).join("");
+  });
+}
+function loadHandoffs() {
+  api("/v1/sites/" + currentSlug + "/handoffs").then(function (rows) {
+    $("handoffsEmpty").style.display = rows.length ? "none" : "";
+    $("handoffsT").querySelector("tbody").innerHTML = rows.map(function (r) {
+      var cls = r.status === "open" ? "busy" : "ok";
+      return "<tr><td class='num' style='font-size:13px'>" + esc(r.email || "—") + "</td><td>" + esc(r.message) +
+             "</td><td><span class='pill " + cls + "'>" + esc(r.status) + "</span></td><td class='meta-inline'>" +
+             fmtDate(r.created_at) + "</td></tr>";
+    }).join("");
+  });
+}
+function loadConversations() {
+  api("/v1/sites/" + currentSlug + "/conversations").then(function (rows) {
+    $("convEmpty").style.display = rows.length ? "none" : "";
+    $("transcriptCard").style.display = "none";
+    $("convT").querySelector("tbody").innerHTML = rows.map(function (r) {
+      return "<tr class='rowlink' onclick='openConv(" + r.id + ")'><td class='num'>" + r.id + "</td><td class='num' style='font-size:12.5px'>" +
+             esc(r.visitor_id || "—") + "</td><td class='num'>" + r.user_messages + "</td><td class='meta-inline'>" +
+             fmtDate(r.started_at) + "</td></tr>";
+    }).join("");
+  });
+}
+function openConv(id) {
+  openConvId = id;
+  api("/v1/sites/" + currentSlug + "/conversations/" + id).then(function (msgs) {
+    $("transcriptCard").style.display = "";
+    $("transcriptTitle").textContent = "Conversation #" + id;
+    $("transcript").innerHTML = msgs.map(function (m) {
+      var fb = m.feedback === 1 ? "<span class='fb'>👍</span>" : (m.feedback === -1 ? "<span class='fb'>👎</span>" : "");
+      return "<div class='msg " + esc(m.role) + "'>" + esc(m.content) + fb + "</div>";
+    }).join("");
+    $("transcriptCard").scrollIntoView({behavior: "smooth", block: "start"});
+  });
+}
+
+/* ------------------------------ settings ------------------------------ */
+function fillSettings(s) {
+  $("s_display_name").value = s.display_name || "";
+  $("s_theme_color").value = s.theme_color || "";
+  $("s_widget_position").value = s.widget_position || "right";
+  $("s_welcome_message").value = s.welcome_message || "";
+  $("s_avatar_url").value = s.avatar_url || "";
+  $("s_suggested_questions").value = (s.suggested_questions || []).join("\n");
+  $("s_allowed_origins").value = s.allowed_origins || "";
+  $("s_recrawl_hours").value = s.recrawl_hours || 0;
+  $("s_min_confidence").value = s.min_confidence || 0;
+  $("s_tone").value = s.tone || "";
+  $("s_blocked_topics").value = (s.blocked_topics || []).join("\n");
+  $("s_canned_answers").value = JSON.stringify(s.canned_answers || [], null, 2);
+  $("s_widget_language").value = s.widget_language || "en";
+  $("s_followups_enabled").checked = !!s.followups_enabled;
+  $("s_digest_webhook_url").value = s.digest_webhook_url || "";
+  $("tgStatus").style.display = s.telegram_connected ? "" : "none";
+  $("slackStatus").style.display = s.slack_connected ? "" : "none";
+  $("waStatus").style.display = s.whatsapp_connected ? "" : "none";
+  $("smsStatus").style.display = s.sms_connected ? "" : "none";
+  $("messengerStatus").style.display = s.messenger_connected ? "" : "none";
+  $("teamsStatus").style.display = s.teams_connected ? "" : "none";
+  $("emailStatus").style.display = s.email_configured ? "" : "none";
+  var pk = s.public_key || "";
+  $("slackWebhookUrl").textContent = location.origin + "/v1/channels/slack/" + pk;
+  $("waWebhookUrl").textContent = location.origin + "/v1/channels/whatsapp/" + pk;
+  $("smsWebhookUrl").textContent = location.origin + "/v1/channels/sms/" + pk;
+  $("messengerWebhookUrl").textContent = location.origin + "/v1/channels/messenger/" + pk;
+  $("teamsWebhookUrl").textContent = location.origin + "/v1/channels/teams/" + pk;
+  $("s_avatar_style").value = s.avatar_style || "";
+  $("s_twilio_from").value = s.twilio_from || "";
+  $("s_notify_email").value = s.notify_email || "";
+  $("s_digest_channel").value = s.digest_channel || "webhook";
+  $("s_twilio_account_sid").value = "";
+  $("s_twilio_auth_token").value = "";
+  $("s_messenger_page_token").value = "";
+  $("s_messenger_verify_token").value = "";
+  $("s_messenger_app_secret").value = "";
+  $("s_teams_app_id").value = "";
+  $("s_teams_app_password").value = "";
+  $("s_slack_bot_token").value = "";
+  $("s_slack_signing_secret").value = "";
+  $("s_custom_instructions").value = s.custom_instructions || "";
+  $("s_model_provider").value = s.model_provider || "";
+  $("s_model_name").value = s.model_name || "";
+  $("s_history_turns").value = s.history_turns != null ? s.history_turns : 6;
+  $("s_retention_days").value = s.retention_days || 0;
+  $("s_proactive_message").value = s.proactive_message || "";
+  $("s_proactive_delay_s").value = s.proactive_delay_s || 0;
+  $("s_lead_capture_enabled").checked = !!s.lead_capture_enabled;
+  $("s_lead_prompt").value = s.lead_prompt || "";
+  $("s_lead_webhook_url").value = s.lead_webhook_url || "";
+  $("s_handoff_enabled").checked = !!s.handoff_enabled;
+  $("s_handoff_webhook_url").value = s.handoff_webhook_url || "";
+  $("s_hide_branding").checked = !!s.hide_branding;
+}
+
+function saveSettings() {
+  var canned;
+  try { canned = JSON.parse($("s_canned_answers").value || "[]"); }
+  catch (e) { toast("Canned answers is not valid JSON", true); return; }
+  var body = {
+    display_name: $("s_display_name").value,
+    theme_color: $("s_theme_color").value,
+    widget_position: $("s_widget_position").value,
+    welcome_message: $("s_welcome_message").value,
+    avatar_url: $("s_avatar_url").value,
+    suggested_questions: $("s_suggested_questions").value.split("\n").map(function (x) { return x.trim(); }).filter(Boolean),
+    allowed_origins: $("s_allowed_origins").value,
+    recrawl_hours: parseInt($("s_recrawl_hours").value || "0", 10),
+    min_confidence: parseFloat($("s_min_confidence").value || "0"),
+    tone: $("s_tone").value,
+    blocked_topics: $("s_blocked_topics").value.split("\n").map(function (x) { return x.trim(); }).filter(Boolean),
+    canned_answers: canned,
+    widget_language: $("s_widget_language").value,
+    followups_enabled: $("s_followups_enabled").checked,
+    digest_webhook_url: $("s_digest_webhook_url").value,
+    custom_instructions: $("s_custom_instructions").value,
+    model_provider: $("s_model_provider").value,
+    model_name: $("s_model_name").value,
+    history_turns: parseInt($("s_history_turns").value || "6", 10),
+    retention_days: parseInt($("s_retention_days").value || "0", 10),
+    proactive_message: $("s_proactive_message").value,
+    proactive_delay_s: parseInt($("s_proactive_delay_s").value || "0", 10),
+    lead_capture_enabled: $("s_lead_capture_enabled").checked,
+    lead_prompt: $("s_lead_prompt").value,
+    lead_webhook_url: $("s_lead_webhook_url").value,
+    handoff_enabled: $("s_handoff_enabled").checked,
+    handoff_webhook_url: $("s_handoff_webhook_url").value,
+    hide_branding: $("s_hide_branding").checked
+  };
+  // Appearance / notifications that are always safe to send.
+  body.avatar_style = $("s_avatar_style").value;
+  body.notify_email = $("s_notify_email").value;
+  body.digest_channel = $("s_digest_channel").value;
+  body.twilio_from = $("s_twilio_from").value;
+  // Credentials are write-only: send only when newly entered.
+  var opt = function (id, key) { var v = $(id).value.trim(); if (v) body[key] = v; };
+  opt("s_slack_bot_token", "slack_bot_token");
+  opt("s_slack_signing_secret", "slack_signing_secret");
+  opt("s_twilio_account_sid", "twilio_account_sid");
+  opt("s_twilio_auth_token", "twilio_auth_token");
+  opt("s_messenger_page_token", "messenger_page_token");
+  opt("s_messenger_verify_token", "messenger_verify_token");
+  opt("s_messenger_app_secret", "messenger_app_secret");
+  opt("s_teams_app_id", "teams_app_id");
+  opt("s_teams_app_password", "teams_app_password");
+  api("/v1/sites/" + currentSlug, {method: "PATCH", body: JSON.stringify(body)})
+    .then(function () { toast("Settings saved"); })
+    .catch(function (e) { toast(e.message, true); });
+}
+
+/* ------------------------------ init ------------------------------ */
+$("apiKey").addEventListener("keydown", function (e) { if (e.key === "Enter") login(); });
+if (KEY) { $("apiKey").value = KEY; boot(); }
+</script>
+</body>
+</html>

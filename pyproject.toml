@@ -1,0 +1,74 @@
+[project]
+name = "sitebot"
+version = "0.2.0"
+description = "Scrape a website, build a knowledge base, and serve a grounded frontend chatbot."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic[email]>=2.7",
+    "pydantic-settings>=2.3",
+    "httpx>=0.27",
+    "trafilatura>=1.9",
+    "lxml>=5.2",
+    "asyncpg>=0.29",
+    "pgvector>=0.3",
+    "anthropic>=0.39",
+    "openai>=1.40",
+    "tenacity>=8.4",
+    "arq>=0.26",
+    "redis>=5.0",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+# Local embeddings if you do not want to call an embedding API.
+# Note: switching the embedding model changes the vector dimension.
+# Update EMBED_DIM and the schema accordingly.
+local = ["sentence-transformers>=3.0"]
+# JavaScript-rendered site support.
+browser = ["playwright>=1.45"]
+# Stripe billing (Phase 3).
+billing = ["stripe>=10.0"]
+# Google Gemini as the answer model (ANSWER_PROVIDER=gemini).
+gemini = ["google-genai>=1.0"]
+# PDF and DOCX knowledge-source uploads.
+documents = ["pypdf>=4.0", "python-docx>=1.1"]
+# Microsoft Teams inbound JWT validation.
+teams = ["pyjwt[crypto]>=2.8"]
+# Error tracking.
+sentry = ["sentry-sdk>=2.0"]
+dev = ["ruff>=0.6", "mypy>=1.11", "pytest>=8.2", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+sitebot = "sitebot.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+sitebot = ["static/*.html"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "ASYNC"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+plugins = []
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

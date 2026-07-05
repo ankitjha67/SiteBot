@@ -1,0 +1,32 @@
+[
+  {
+    "question": "How many days do I have to return an item?",
+    "expect_url": "returns",
+    "expect_any": ["30 days"]
+  },
+  {
+    "question": "How quickly are refunds processed?",
+    "expect_url": "returns",
+    "expect_any": ["5 business days"]
+  },
+  {
+    "question": "What are your support hours?",
+    "expect_url": "support",
+    "expect_any": ["9am to 6pm"]
+  },
+  {
+    "question": "How fast do enterprise customers get a response?",
+    "expect_url": "support",
+    "expect_any": ["4 hour"]
+  },
+  {
+    "question": "How much is the starter plan?",
+    "expect_url": "pricing",
+    "expect_any": ["29 euros"]
+  },
+  {
+    "question": "Do I save money with annual billing?",
+    "expect_url": "pricing",
+    "expect_any": ["two months"]
+  }
+]

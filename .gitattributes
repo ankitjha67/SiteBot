@@ -1,0 +1,5 @@
+# Normalize line endings: LF in the repo, so CI on Linux and dev on Windows agree.
+* text=auto eol=lf
+*.webp binary
+*.png binary
+*.jpg binary

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SiteBot demo</title>
+  <style>
+    body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #fafafa; color: #222; }
+    .wrap { max-width: 720px; margin: 80px auto; padding: 0 24px; }
+    h1 { font-size: 28px; }
+    code { background: #eee; padding: 2px 6px; border-radius: 4px; }
+    .note { color: #666; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>SiteBot demo page</h1>
+    <p>This page loads the chat widget in the bottom right corner.</p>
+    <p class="note">
+      1. Start the API: <code>sitebot serve</code><br />
+      2. Index a site: <code>sitebot ingest-url https://example.com</code><br />
+      3. Paste the printed public key into <code>data-key</code> below and reload.
+    </p>
+  </div>
+
+  <!-- Replace data-key with your printed public key and data-api with your API URL. -->
+  <script
+    src="./widget.js"
+    data-key="pk_REPLACE_ME"
+    data-api="http://localhost:8000"></script>
+</body>
+</html>

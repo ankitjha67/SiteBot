@@ -1,0 +1,32 @@
+[
+  {
+    "question": "How long is the warranty on grinders?",
+    "expect_url": "warranty",
+    "expect_any": ["3 year", "3-year"]
+  },
+  {
+    "question": "How much does standard shipping cost?",
+    "expect_url": "shipping",
+    "expect_any": ["5.99"]
+  },
+  {
+    "question": "When do orders qualify for free shipping?",
+    "expect_url": "shipping",
+    "expect_any": ["40"]
+  },
+  {
+    "question": "What is the pour-over recipe for the Northern Lights blend?",
+    "expect_url": "9002",
+    "expect_any": ["1 to 16", "22 grams"]
+  },
+  {
+    "question": "What are the cafe opening hours on Sunday?",
+    "expect_url": "9001",
+    "expect_any": ["8am to 4pm"]
+  },
+  {
+    "question": "How long should cold brew steep?",
+    "expect_url": "9002",
+    "expect_any": ["18 hours"]
+  }
+]

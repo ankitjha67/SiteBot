@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SiteBot — Client Onboarding</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:#f4f3ee; --surface:#fdfdfb; --ink:#1c211e; --ink-2:#454d48; --muted:#79817c;
+    --line:#e3e1d7; --line-strong:#cfccc0; --pine:#1d5c46; --pine-dark:#17493a;
+    --pine-soft:#e7efe9; --amber:#9a6b15; --amber-soft:#f5ecd9; --red:#a8322c; --red-soft:#f6e5e3;
+    --sans:"IBM Plex Sans",-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+    --shadow:0 1px 2px rgb(28 33 30 / 0.06);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:var(--sans); background:var(--paper); color:var(--ink); font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased; }
+  .num { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  header { background:var(--sidebar,#15211b); color:#fff; padding:16px 28px; display:flex; align-items:center; gap:10px; }
+  header .glyph { width:26px; height:26px; border-radius:7px; background:#2c4437; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:13px; font-weight:600; }
+  header b { font-weight:700; letter-spacing:-0.02em; }
+  header span.sub { color:#8a988e; font-weight:500; }
+  main { max-width:860px; margin:26px auto; padding:0 22px 80px; }
+  .lead { color:var(--muted); margin:0 0 22px; }
+  .lead b { color:var(--ink); }
+
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:11px; box-shadow:var(--shadow); margin-bottom:16px; overflow:hidden; }
+  .card > h2 { font-size:14px; margin:0; padding:14px 18px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px; }
+  .card > h2 .step { width:22px; height:22px; border-radius:50%; background:var(--pine-soft); color:var(--pine); font-size:12px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; }
+  .card > h2 .req { font-size:11px; font-weight:600; color:var(--red); background:var(--red-soft); border:1px solid #e8cbc8; padding:1px 8px; border-radius:99px; margin-left:auto; }
+  .card > h2 .opt { font-size:11px; font-weight:600; color:var(--muted); margin-left:auto; }
+  .body { padding:18px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:0 22px; }
+  .grid .full { grid-column:1/-1; }
+
+  label { display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:500; color:var(--ink-2); margin:0 0 5px; }
+  label .star { color:var(--red); }
+  .field { margin-bottom:15px; }
+  input, select, textarea { width:100%; padding:9px 11px; border:1px solid var(--line-strong); border-radius:8px; background:var(--surface); font-size:13.5px; font-family:inherit; }
+  input:focus, select:focus, textarea:focus { outline:2px solid var(--pine); outline-offset:-1px; border-color:var(--pine); }
+  input.bad { border-color:var(--red); background:var(--red-soft); }
+  textarea { resize:vertical; min-height:52px; }
+  .hint { font-size:12px; color:var(--muted); margin-top:4px; }
+  .err { font-size:12px; color:var(--red); margin-top:4px; display:none; }
+  .err.show { display:block; }
+
+  .info { width:16px; height:16px; border-radius:50%; border:1px solid var(--line-strong); background:var(--surface); color:var(--muted); font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; }
+  .info:hover { border-color:var(--pine); color:var(--pine); }
+  .helpbox { display:none; background:var(--pine-soft); border:1px solid #cfe0d4; border-radius:8px; padding:9px 12px; font-size:12.5px; color:var(--ink-2); margin:-6px 0 12px; }
+  .helpbox.show { display:block; }
+  .helpbox a { color:var(--pine); font-weight:600; }
+
+  .check { display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:500; color:var(--ink); margin-bottom:12px; }
+  .check input { width:auto; accent-color:var(--pine); }
+  .subhead { grid-column:1/-1; font-size:11px; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--line); padding-bottom:6px; margin:6px 0 14px; }
+
+  .btn { background:var(--pine); color:#fff; border:1px solid var(--pine); border-radius:8px; padding:11px 20px; font-size:14px; font-weight:600; cursor:pointer; }
+  .btn:hover { background:var(--pine-dark); }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .btn.ghost { background:var(--surface); color:var(--ink-2); border-color:var(--line-strong); font-weight:500; }
+
+  .agents { display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:10px; margin-top:4px; }
+  .agent { border:2px solid var(--line); border-radius:10px; background:var(--surface); padding:9px 6px 7px; text-align:center; cursor:pointer; transition:border-color .12s ease, transform .12s ease, background .12s ease; }
+  .agent:hover { border-color:var(--pine); transform:translateY(-1px); }
+  .agent.sel { border-color:var(--pine); background:var(--pine-soft); }
+  .agent img { width:62px; height:62px; border-radius:50%; object-fit:cover; display:block; margin:0 auto 6px; border:1px solid var(--line); }
+  .agent .an { font-size:12.5px; font-weight:600; color:var(--ink); }
+  .agent .ar { font-size:10.5px; color:var(--muted); line-height:1.3; }
+
+  .savebar { position:sticky; bottom:0; background:linear-gradient(transparent, var(--paper) 40%); padding:16px 0 4px; display:flex; align-items:center; gap:14px; }
+  .savebar .status { font-size:13px; color:var(--muted); }
+
+  #gate { max-width:420px; margin:12vh auto; }
+  #done { display:none; }
+  .snippet { background:#1b241f; color:#cfe0d4; border-radius:8px; padding:14px 16px; overflow-x:auto; font-family:var(--mono); font-size:12px; line-height:1.7; white-space:pre; position:relative; }
+  .snippet .copy { position:absolute; top:8px; right:8px; background:#2c4437; color:#cfe0d4; border:0; border-radius:5px; padding:3px 9px; font-size:11px; font-family:var(--sans); cursor:pointer; }
+  #toast { position:fixed; bottom:22px; right:22px; background:var(--ink); color:#fff; padding:10px 16px; border-radius:8px; display:none; z-index:50; font-size:13.5px; }
+  #toast.bad { background:var(--red); }
+  @media (max-width:720px){ .grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header><span class="glyph">S/</span> <b>SiteBot</b> <span class="sub">Client Onboarding</span></header>
+
+<main>
+  <!-- connect gate -->
+  <div id="gate" class="card">
+    <h2>Connect</h2>
+    <div class="body">
+      <p class="hint" style="margin-top:0">Enter your admin key or a tenant key. It stays in this browser.</p>
+      <div class="field"><input type="password" id="apiKey" placeholder="X-API-Key (tk_… or admin key)" /></div>
+      <button class="btn" style="width:100%" onclick="connect()">Continue</button>
+    </div>
+  </div>
+
+  <!-- wizard -->
+  <div id="wizard" style="display:none">
+    <p class="lead">Fill in the client's details below. Fields marked <span class="star" style="color:var(--red)">*</span> are <b>required</b> — without them the bot cannot work. Click the <b>(i)</b> next to any field to see exactly where to find it. One <b>Save</b> configures everything.</p>
+
+    <!-- 1. Client basics -->
+    <div class="card">
+      <h2><span class="step">1</span> Client &amp; domain <span class="req">Required</span></h2>
+      <div class="body"><div class="grid">
+        <div class="field">
+          <label>Client / bot name <span class="star">*</span> <button class="info" data-help="name">i</button></label>
+          <input type="text" id="f_name" placeholder="Acme Inc" oninput="validate()" />
+          <div class="err" id="e_name">Required.</div>
+        </div>
+        <div class="field">
+          <label>Website domain <span class="star">*</span> <button class="info" data-help="domain">i</button></label>
+          <input type="url" id="f_domain" placeholder="https://www.acme.com" oninput="validate()" />
+          <div class="err" id="e_domain">Enter the client's website URL.</div>
+        </div>
+        <div class="field">
+          <label>URL slug <button class="info" data-help="slug">i</button></label>
+          <input type="text" id="f_slug" placeholder="auto from domain, e.g. acme-com" />
+          <div class="hint">Optional. The site's identity in API paths and the dashboard.</div>
+        </div>
+        <div class="helpbox full" id="h_slug">A short lowercase identifier (letters, digits, dashes). Leave blank to derive it from the domain.</div>
+        <div class="helpbox full" id="h_name">The display name shown at the top of the chat widget, e.g. "Acme Assistant".</div>
+        <div class="helpbox full" id="h_domain">The client's website URL. This is what the bot is trained on (crawled) and where the widget is embedded. Include <span class="num">https://</span>. The widget will be locked to this domain automatically.</div>
+        <div class="field full">
+          <label>Additional websites to learn from <button class="info" data-help="extra">i</button></label>
+          <textarea id="f_extra" placeholder="https://docs.acme.com&#10;https://help.acme.com&#10;(one URL per line — optional)"></textarea>
+          <div class="hint">The bot crawls the main domain above plus each of these, into one knowledge base.</div>
+        </div>
+        <div class="helpbox full" id="h_extra">Extra seed URLs — a docs site, a help center, a blog. Each is crawled within its own domain and merged into this client's single knowledge base. Leave blank to crawl just the main domain.</div>
+        <div class="field full">
+          <label>Allowed origins <button class="info" data-help="origins">i</button></label>
+          <input type="text" id="f_origins" placeholder="defaults to the domain above" />
+          <div class="hint">Comma-separated domains permitted to embed the widget. Leave blank to auto-use the domain.</div>
+        </div>
+        <div class="helpbox full" id="h_origins">A security control: only these domains can load the chat widget. Defaults to the client's domain. Add more (comma-separated) if the widget runs on several domains.</div>
+      </div></div>
+    </div>
+
+    <!-- 2. LLM -->
+    <div class="card">
+      <h2><span class="step">2</span> AI model &amp; key <span class="req">Required</span></h2>
+      <div class="body"><div class="grid">
+        <div class="field">
+          <label>Provider <span class="star">*</span> <button class="info" data-help="provider">i</button></label>
+          <select id="f_provider" onchange="onProvider();validate()">
+            <option value="">Platform default</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="openai">OpenAI (GPT)</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="openai_compatible">Local / OpenAI-compatible (Ollama, vLLM…)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Model name <button class="info" data-help="model">i</button></label>
+          <input type="text" id="f_model" placeholder="blank = default (e.g. claude-haiku-4-5)" />
+        </div>
+        <div class="field full" id="keyField">
+          <label>LLM API key <span class="star" id="keyStar">*</span> <button class="info" data-help="key">i</button></label>
+          <input type="password" id="f_key" placeholder="the client's model API key" oninput="validate()" />
+          <div class="err" id="e_key">An API key is required for this provider (or choose a local model).</div>
+        </div>
+        <div class="helpbox full" id="h_provider">Which AI powers the answers. Claude, GPT, and Gemini are hosted (need an API key). "Local / OpenAI-compatible" points at a model you run yourself (Ollama with Qwen/Llama) — no key, no per-message cost, data stays on your server.</div>
+        <div class="helpbox full" id="h_model">Optional. Leave blank for the sensible default. Examples: <span class="num">claude-haiku-4-5</span>, <span class="num">gpt-4o-mini</span>, <span class="num">gemini-2.5-flash</span>, <span class="num">qwen2.5</span> (local).</div>
+        <div class="helpbox full" id="h_key"></div>
+        <div class="field full" id="baseUrlField" style="display:none">
+          <label>Local model base URL <button class="info" data-help="baseurl">i</button></label>
+          <input type="text" id="f_baseurl" placeholder="http://localhost:11434/v1 (Ollama)" />
+          <div class="hint">Set at the platform level via OPENAI_COMPATIBLE_BASE_URL; shown here for reference.</div>
+        </div>
+        <div class="helpbox full" id="h_baseurl">For a local model, the platform's <span class="num">OPENAI_COMPATIBLE_BASE_URL</span> env var points at it (e.g. Ollama on <span class="num">http://localhost:11434/v1</span>). Per-client base URLs aren't set here.</div>
+      </div></div>
+    </div>
+
+    <!-- 3. Appearance & behaviour -->
+    <div class="card">
+      <h2><span class="step">3</span> Appearance &amp; behaviour <span class="opt">Optional</span></h2>
+      <div class="body"><div class="grid">
+        <div class="field full">
+          <label>Choose your agent <button class="info" data-help="agent">i</button></label>
+          <div class="agents" id="agentGrid"></div>
+          <div class="hint" id="agentHint">Pick the face and name visitors meet in the chat — 20 agents from every region. Click again to deselect.</div>
+        </div>
+        <div class="helpbox full" id="h_agent">The selected agent becomes the widget's display name and avatar (you can still change either later in the dashboard). Choose one matching your client's main market — or none to use the company name with no photo.</div>
+        <div class="field"><label>Theme color</label><input type="text" id="f_theme" placeholder="#1d5c46" /></div>
+        <div class="field"><label>Widget language</label>
+          <select id="f_lang"><option value="en">English</option><option value="es">Español</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="hi">हिन्दी</option><option value="pt">Português</option></select></div>
+        <div class="field full"><label>Welcome message</label><input type="text" id="f_welcome" placeholder="Hi! Ask me anything about Acme." /></div>
+        <div class="field full"><label>Custom instructions <button class="info" data-help="custom">i</button></label>
+          <textarea id="f_custom" placeholder="e.g. Always mention the 30-day free trial when pricing comes up."></textarea></div>
+        <div class="helpbox full" id="h_custom">Extra guidance appended to the bot's instructions — tone, things to emphasize, how to handle certain questions.</div>
+        <div class="field"><label>Avatar animation</label><select id="f_avatar"><option value="">Static</option><option value="pulse">Pulse</option><option value="bounce">Bounce</option></select></div>
+        <div><label class="check" style="margin-top:26px"><input type="checkbox" id="f_followups" /> Suggest follow-up questions</label></div>
+      </div></div>
+    </div>
+
+    <!-- 4. Lead capture, handoff, email -->
+    <div class="card">
+      <h2><span class="step">4</span> Leads, handoff &amp; email <span class="opt">Optional</span></h2>
+      <div class="body"><div class="grid">
+        <div><label class="check"><input type="checkbox" id="f_lead" /> Enable lead capture</label>
+          <label class="check"><input type="checkbox" id="f_handoff" /> Enable human handoff</label></div>
+        <div class="field">
+          <label>Alert email <button class="info" data-help="email">i</button></label>
+          <input type="email" id="f_notify" placeholder="owner@acme.com" />
+          <div class="hint">Receives new leads &amp; handoff requests.</div>
+        </div>
+        <div class="helpbox full" id="h_email">Where to email new leads and handoff requests. Requires the platform SMTP relay (SMTP_HOST) to be configured; otherwise use a webhook.</div>
+        <div class="field full"><label>Lead/handoff webhook (Slack/Zapier) <button class="info" data-help="webhook">i</button></label>
+          <input type="url" id="f_leadhook" placeholder="https://hooks.slack.com/services/…" /></div>
+        <div class="helpbox full" id="h_webhook">A URL to POST leads/handoffs to — a Slack Incoming Webhook, Zapier/Make catch hook, or the client's own endpoint. Must be a public HTTPS URL.</div>
+      </div></div>
+    </div>
+
+    <!-- 5. Channels -->
+    <div class="card">
+      <h2><span class="step">5</span> Messaging channels <span class="opt">Optional</span></h2>
+      <div class="body"><div class="grid">
+        <div class="subhead">Telegram <button class="info" data-help="telegram" style="margin-left:6px">i</button></div>
+        <div class="helpbox full" id="h_telegram">Open Telegram, message <b>@BotFather</b>, send <span class="num">/newbot</span>, and copy the token it gives you. The webhook is registered automatically.</div>
+        <div class="field full"><input type="password" id="f_tg" placeholder="Telegram bot token (123456:ABC-…)" /></div>
+
+        <div class="subhead">Slack <button class="info" data-help="slack" style="margin-left:6px">i</button></div>
+        <div class="helpbox full" id="h_slack">At <a href="https://api.slack.com/apps" target="_blank" rel="noopener">api.slack.com/apps</a> create an app → <b>OAuth &amp; Permissions</b> for the Bot Token (<span class="num">xoxb-…</span>) and <b>Basic Information</b> for the Signing Secret. Point Event Subscriptions at the URL shown after saving.</div>
+        <div class="field"><input type="password" id="f_slack_tok" placeholder="Bot token (xoxb-…)" /></div>
+        <div class="field"><input type="password" id="f_slack_sec" placeholder="Signing secret" /></div>
+
+        <div class="subhead">WhatsApp (Meta) <button class="info" data-help="whatsapp" style="margin-left:6px">i</button></div>
+        <div class="helpbox full" id="h_whatsapp">At <a href="https://developers.facebook.com" target="_blank" rel="noopener">developers.facebook.com</a> → your app → <b>WhatsApp → API Setup</b>: copy the access token and phone number ID. Choose any verify token. The app secret is under <b>App Settings → Basic</b>.</div>
+        <div class="field"><input type="password" id="f_wa_tok" placeholder="Access token" /></div>
+        <div class="field"><input type="text" id="f_wa_phone" placeholder="Phone number ID" /></div>
+        <div class="field"><input type="text" id="f_wa_verify" placeholder="Verify token (you choose)" /></div>
+        <div class="field"><input type="password" id="f_wa_secret" placeholder="App secret" /></div>
+
+        <div class="subhead">SMS (Twilio) <button class="info" data-help="sms" style="margin-left:6px">i</button></div>
+        <div class="helpbox full" id="h_sms">In the <a href="https://console.twilio.com" target="_blank" rel="noopener">Twilio Console</a>: Account SID and Auth Token on the dashboard, and a Messaging-capable phone number under Phone Numbers.</div>
+        <div class="field"><input type="text" id="f_tw_sid" placeholder="Account SID (AC…)" /></div>
+        <div class="field"><input type="password" id="f_tw_tok" placeholder="Auth token" /></div>
+        <div class="field"><input type="text" id="f_tw_from" placeholder="From number (+1…)" /></div>
+
+        <div class="subhead">Microsoft Teams <button class="info" data-help="teams" style="margin-left:6px">i</button></div>
+        <div class="helpbox full" id="h_teams">Register an Azure Bot at <a href="https://portal.azure.com" target="_blank" rel="noopener">portal.azure.com</a> (Bot Framework) → copy the <b>Microsoft App ID</b> and a client secret (App password). Set the messaging endpoint to the URL shown after saving.</div>
+        <div class="field"><input type="text" id="f_teams_id" placeholder="Bot app ID" /></div>
+        <div class="field"><input type="password" id="f_teams_pw" placeholder="Bot app password" /></div>
+
+        <div class="subhead">Facebook Messenger / Instagram <button class="info" data-help="messenger" style="margin-left:6px">i</button></div>
+        <div class="helpbox full" id="h_messenger">At <a href="https://developers.facebook.com" target="_blank" rel="noopener">developers.facebook.com</a> → <b>Messenger → Settings</b>: generate a Page access token, choose a verify token, and copy the app secret from App Settings.</div>
+        <div class="field"><input type="password" id="f_fb_tok" placeholder="Page access token" /></div>
+        <div class="field"><input type="text" id="f_fb_verify" placeholder="Verify token (you choose)" /></div>
+        <div class="field"><input type="password" id="f_fb_secret" placeholder="App secret" /></div>
+      </div></div>
+    </div>
+
+    <!-- 6. Security -->
+    <div class="card">
+      <h2><span class="step">6</span> Secrets Guardian <span class="opt">Optional</span></h2>
+      <div class="body"><div class="grid">
+        <div class="full"><label class="check"><input type="checkbox" id="f_guard" /> Never reveal company secrets (blocks leaks even under jailbreak)</label></div>
+        <div class="field full"><label>Literal secrets — one per line <button class="info" data-help="secrets">i</button></label>
+          <textarea id="f_secrets" placeholder="internal API keys, unpublished prices, coupon codes…"></textarea></div>
+        <div class="helpbox full" id="h_secrets">Exact strings the bot must never output. They're used only to scan answers — never sent to the model. If any appears in a reply, the whole reply is blocked.</div>
+        <div class="field full"><label>Confidential topics — one per line</label>
+          <textarea id="f_topics" placeholder="profit margins, employee salaries, unreleased products…"></textarea></div>
+      </div></div>
+    </div>
+
+    <div class="savebar">
+      <button class="btn" id="saveBtn" onclick="save()" disabled>Save &amp; configure client</button>
+      <label class="check" style="margin:0"><input type="checkbox" id="f_ingest" checked /> Crawl the site now</label>
+      <span class="status" id="saveStatus">Fill the required fields to continue.</span>
+    </div>
+  </div>
+
+  <!-- done -->
+  <div id="done" class="card">
+    <h2>✓ Client configured</h2>
+    <div class="body">
+      <p>The bot for <b id="doneName"></b> is set up<span id="doneIngest"> and indexing has started</span>. Paste this snippet before <span class="num">&lt;/body&gt;</span> on the client's website:</p>
+      <div class="snippet"><button class="copy" onclick="copySnippet()">Copy</button><span id="snippet"></span></div>
+      <div id="clientKeyBox" style="display:none;margin-top:20px">
+        <p style="margin-bottom:8px"><b>Client access key</b> — hand this to the client so they can sign in to their dashboard. <span style="color:#b23">Shown only once; store it now.</span></p>
+        <div class="snippet"><button class="copy" onclick="copyKey()">Copy</button><span id="clientKey"></span></div>
+      </div>
+      <p style="margin-top:16px"><a class="btn ghost" id="toDash" href="/dashboard">Open the dashboard</a>
+        <button class="btn ghost" onclick="location.reload()">Onboard another client</button></p>
+    </div>
+  </div>
+</main>
+<div id="toast"></div>
+
+<script>
+"use strict";
+var KEY = "";
+function $(id){ return document.getElementById(id); }
+function toast(m,bad){ var t=$("toast"); t.textContent=m; t.className=bad?"bad":""; t.style.display="block"; clearTimeout(t._h); t._h=setTimeout(function(){t.style.display="none";},3500); }
+
+var KEY_HELP = {
+  anthropic: 'Anthropic (Claude) key — create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com → Settings → API Keys</a>. Starts with <span class="num">sk-ant-</span>.',
+  openai: 'OpenAI (GPT) key — create one at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com/api-keys</a>. Starts with <span class="num">sk-</span>.',
+  gemini: 'Google Gemini key — create one at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>.',
+  "": 'Uses the platform default provider/key configured in the server\'s .env. Enter a key only to override it for this client.',
+  openai_compatible: 'Local models need no key. Make sure the platform\'s OPENAI_COMPATIBLE_BASE_URL points at your Ollama/vLLM server.'
+};
+
+// (i) buttons toggle their help box
+document.addEventListener("click", function(e){
+  var b = e.target.closest(".info");
+  if (!b) return;
+  var box = $("h_" + b.dataset.help);
+  if (box) box.classList.toggle("show");
+});
+
+function connect(){
+  KEY = $("apiKey").value.trim();
+  if (!KEY){ toast("Enter a key", true); return; }
+  // verify the key works
+  fetch("/v1/tenants/me", { headers: { "X-API-Key": KEY } })
+    .then(function(r){ if(!r.ok) throw new Error("Invalid key"); return r.json(); })
+    .then(function(){ $("gate").style.display="none"; $("wizard").style.display="block"; })
+    .catch(function(){ toast("Invalid key", true); });
+}
+
+function onProvider(){
+  var p = $("f_provider").value;
+  var local = p === "openai_compatible";
+  $("keyStar").style.display = (local || p==="") ? "none" : "inline";
+  $("baseUrlField").style.display = local ? "block" : "none";
+  $("h_key").innerHTML = KEY_HELP[p] || KEY_HELP[""];
+  $("h_key").classList.toggle("show", true);
+}
+
+function validate(){
+  var okName = $("f_name").value.trim().length > 0;
+  var domain = $("f_domain").value.trim();
+  var okDomain = /\./.test(domain);
+  var p = $("f_provider").value;
+  var needKey = p && p !== "openai_compatible";
+  var okKey = !needKey || $("f_key").value.trim().length > 0;
+  $("f_name").classList.toggle("bad", !okName && $("f_name").value.length>0);
+  $("f_domain").classList.toggle("bad", !okDomain && domain.length>0);
+  $("f_key").classList.toggle("bad", !okKey && $("f_key").value.length>0);
+  var ok = okName && okDomain && okKey;
+  $("saveBtn").disabled = !ok;
+  $("saveStatus").textContent = ok ? "Ready to save." :
+    "Required: client name, a valid domain" + (needKey ? ", and an LLM API key." : ".");
+  return ok;
+}
+
+function lines(id){ return $(id).value.split("\n").map(function(x){return x.trim();}).filter(Boolean); }
+function v(id){ var x=$(id).value.trim(); return x||undefined; }
+
+/* ---- regional agents: 20 personas, Asia Pacific to the Americas ---- */
+var AGENTS = [
+  {name:"Mei Lin",   region:"Asia Pacific",   img:"asia_pacific_female"},
+  {name:"Kenji",     region:"Asia Pacific",   img:"asia_pacific_male"},
+  {name:"Priya",     region:"South Asia",     img:"south_asia_female"},
+  {name:"Arjun",     region:"South Asia",     img:"south_asia_male"},
+  {name:"Linh",      region:"Southeast Asia", img:"southeast_asia_female"},
+  {name:"Rizal",     region:"Southeast Asia", img:"southeast_asia_male"},
+  {name:"Charlotte", region:"Australia",      img:"australia_female"},
+  {name:"Jack",      region:"Australia",      img:"australia_male"},
+  {name:"Layla",     region:"MENAT",          img:"menat_female"},
+  {name:"Omar",      region:"MENAT",          img:"menat_male"},
+  {name:"Rania",     region:"Jordan",         img:"menat_jordan_female"},
+  {name:"Faisal",    region:"Jordan",         img:"menat_jordan_male"},
+  {name:"Sofia",     region:"Europe",         img:"europe_female"},
+  {name:"Lukas",     region:"Europe",         img:"europe_male"},
+  {name:"Amara",     region:"Africa",         img:"africa_female"},
+  {name:"Kwame",     region:"Africa",         img:"africa_male"},
+  {name:"Emily",     region:"North America",  img:"north_america_female"},
+  {name:"Ethan",     region:"North America",  img:"north_america_male"},
+  {name:"Valentina", region:"Latin America",  img:"latin_america_female"},
+  {name:"Diego",     region:"Latin America",  img:"latin_america_male"}
+];
+var selectedAgent = null;
+function renderAgents(){
+  var g = $("agentGrid");
+  g.innerHTML = AGENTS.map(function(a, i){
+    return '<div class="agent" id="ag'+i+'" onclick="pickAgent('+i+')" role="button" tabindex="0" ' +
+           'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();pickAgent('+i+');}">' +
+           '<img src="/static/agents/'+a.img+'.webp" alt="'+a.name+', '+a.region+'" loading="lazy" />' +
+           '<div class="an">'+a.name+'</div><div class="ar">'+a.region+'</div></div>';
+  }).join("");
+}
+function pickAgent(i){
+  if (selectedAgent === i) { selectedAgent = null; }
+  else { selectedAgent = i; }
+  AGENTS.forEach(function(_, j){ $("ag"+j).classList.toggle("sel", j===selectedAgent); });
+  $("agentHint").textContent = selectedAgent === null
+    ? "Pick the face and name visitors meet in the chat — 20 agents from every region. Click again to deselect."
+    : AGENTS[selectedAgent].name + " (" + AGENTS[selectedAgent].region + ") will be the widget's name and avatar.";
+}
+function chk(id){ return $(id).checked; }
+
+function save(){
+  if (!validate()) return;
+  var cfg = {
+    display_name: selectedAgent !== null ? AGENTS[selectedAgent].name : undefined,
+    avatar_url: selectedAgent !== null ? "/static/agents/" + AGENTS[selectedAgent].img + ".webp" : undefined,
+    theme_color: v("f_theme"), welcome_message: v("f_welcome"),
+    widget_language: $("f_lang").value, custom_instructions: v("f_custom"),
+    avatar_style: $("f_avatar").value || undefined, followups_enabled: chk("f_followups"),
+    allowed_origins: v("f_origins"), extra_urls: lines("f_extra"),
+    model_provider: $("f_provider").value || undefined, model_name: v("f_model"), llm_api_key: v("f_key"),
+    lead_capture_enabled: chk("f_lead"), handoff_enabled: chk("f_handoff"),
+    notify_email: v("f_notify"), lead_webhook_url: v("f_leadhook"), handoff_webhook_url: v("f_leadhook"),
+    telegram_bot_token: v("f_tg"),
+    slack_bot_token: v("f_slack_tok"), slack_signing_secret: v("f_slack_sec"),
+    whatsapp_token: v("f_wa_tok"), whatsapp_phone_id: v("f_wa_phone"), whatsapp_verify_token: v("f_wa_verify"), whatsapp_app_secret: v("f_wa_secret"),
+    twilio_account_sid: v("f_tw_sid"), twilio_auth_token: v("f_tw_tok"), twilio_from: v("f_tw_from"),
+    teams_app_id: v("f_teams_id"), teams_app_password: v("f_teams_pw"),
+    messenger_page_token: v("f_fb_tok"), messenger_verify_token: v("f_fb_verify"), messenger_app_secret: v("f_fb_secret"),
+    guard_enabled: chk("f_guard"), protected_secrets: lines("f_secrets"), protected_topics: lines("f_topics")
+  };
+  Object.keys(cfg).forEach(function(k){ if (cfg[k]===undefined) delete cfg[k]; });
+  var body = { name: $("f_name").value.trim(), start_url: $("f_domain").value.trim(), slug: v("f_slug"), ingest_now: chk("f_ingest"), config: cfg };
+  $("saveBtn").disabled = true; $("saveStatus").textContent = "Saving…";
+  fetch("/v1/onboard", { method:"POST", headers:{ "X-API-Key":KEY, "Content-Type":"application/json" }, body: JSON.stringify(body) })
+    .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.detail||"Failed"); return j; }); })
+    .then(function(res){
+      $("wizard").style.display="none"; $("done").style.display="block";
+      $("doneName").textContent = body.name;
+      $("doneIngest").style.display = body.ingest_now ? "inline" : "none";
+      $("snippet").textContent = res.embed_snippet;
+      if (res.client_api_key) { $("clientKey").textContent = res.client_api_key; $("clientKeyBox").style.display = "block"; }
+      window.scrollTo({top:0, behavior:"smooth"});
+    })
+    .catch(function(e){ $("saveBtn").disabled=false; $("saveStatus").textContent=""; toast(e.message, true); });
+}
+
+function copySnippet(){ navigator.clipboard.writeText($("snippet").textContent).then(function(){ toast("Copied"); }); }
+function copyKey(){ navigator.clipboard.writeText($("clientKey").textContent).then(function(){ toast("Key copied"); }); }
+
+$("apiKey").addEventListener("keydown", function(e){ if(e.key==="Enter") connect(); });
+renderAgents();
+</script>
+</body>
+</html>
