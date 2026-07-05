@@ -547,3 +547,16 @@ def test_entity_extraction() -> None:
     assert "summit auto group" in names
     # Stopword-only capitalization at sentence start is not an entity.
     assert "the" not in names
+
+
+def test_branding_skips_icon_fonts() -> None:
+    from sitebot.branding import detect_font
+
+    # Only an icon font via Google Fonts -> no brand font (falls through).
+    html = '<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&icon_names=x">'
+    assert detect_font(html) == ("", "")
+    # Icon font first, real font second -> pick the real one.
+    html2 = ('<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined">'
+             '<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600">')
+    fam, url = detect_font(html2)
+    assert fam == "Manrope" and "Manrope" in url

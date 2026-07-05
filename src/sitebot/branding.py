@@ -32,12 +32,21 @@ _GFONTS_RE = re.compile(
     r'fonts\.googleapis\.com/css2?\?([^"\'>]+)', re.I
 )
 _FONT_FAMILY_RE = re.compile(r'font-family\s*:\s*([^;{}"\']+)', re.I)
+_VALID_FONT_RE = re.compile(r"[A-Za-z][A-Za-z0-9 _-]{1,40}")
 # Generic families we never want to advertise as "the brand font".
 _GENERIC_FONTS = {
     "sans-serif", "serif", "monospace", "system-ui", "inherit", "initial",
     "-apple-system", "blinkmacsystemfont", "ui-sans-serif", "ui-serif", "arial",
     "helvetica", "roboto", "segoe ui", "cursive",
 }
+# Icon fonts are decorative glyph sets, never a site's text/brand font.
+_ICON_FONTS = ("material symbols", "material icons", "font awesome",
+               "fontawesome", "ionicons", "glyphicon", "feather")
+
+
+def _is_icon_font(name: str) -> bool:
+    n = name.lower()
+    return any(k in n for k in _ICON_FONTS)
 
 
 def _hex6(h: str) -> str:
@@ -73,25 +82,28 @@ def detect_color(html: str) -> str:
 
 
 def detect_font(html: str) -> tuple[str, str]:
-    """Return (family_name, google_fonts_url). Empty strings if none found."""
-    m = _GFONTS_RE.search(html)
-    if m:
+    """Return (family_name, google_fonts_url). Empty strings if none found.
+    Skips icon fonts (Material Symbols, Font Awesome, ...) which are glyph
+    sets, not a site's text font."""
+    for m in _GFONTS_RE.finditer(html):
         query = unquote(m.group(1))
-        fam = re.search(r"family=([^:&]+)", query)
-        if fam:
-            family = fam.group(1).replace("+", " ").strip()
-            if family and family.lower() not in _GENERIC_FONTS:
-                url = "https://fonts.googleapis.com/css2?" + query.split("&display")[0]
-                if "display=swap" not in url:
-                    url += "&display=swap"
-                return family, url
+        for fam in re.findall(r"family=([^:&]+)", query):
+            family = fam.replace("+", " ").strip()
+            low = family.lower()
+            if not family or low in _GENERIC_FONTS or _is_icon_font(family):
+                continue
+            base = "family=" + fam.split(":")[0]
+            url = "https://fonts.googleapis.com/css2?" + base + "&display=swap"
+            return family, url
     # Fall back to the first non-generic named font-family in CSS.
     for decl in _FONT_FAMILY_RE.findall(html):
         for name in decl.split(","):
             name = name.strip().strip("'\"")
+            # A real font name starts with a letter and is plain text — this
+            # rejects var(...), HTML entities (&#x27;), and other junk.
             if (
-                name and name.lower() not in _GENERIC_FONTS
-                and not name.startswith(("var(", "-"))
+                _VALID_FONT_RE.fullmatch(name) and name.lower() not in _GENERIC_FONTS
+                and not _is_icon_font(name)
             ):
                 return name, ""
     return "", ""
