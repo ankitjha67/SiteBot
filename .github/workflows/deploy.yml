@@ -1,0 +1,71 @@
+name: Deploy SiteBot
+
+# Auto-deploys the SiteBot backend (the bot.<yourdomain> server) when you push
+# to main, and on demand. This does NOT touch the client website (aiing.in) —
+# that only carries a one-line <script> tag. It updates the server that the
+# widget talks to.
+#
+# Requires a VM already running docker-compose.prod.yml (see docs/GO_LIVE.md),
+# and these repository secrets (Settings -> Secrets and variables -> Actions):
+#   DEPLOY_HOST     the server's public IP or hostname (e.g. bot.aiing.in)
+#   DEPLOY_USER     ssh user (e.g. root or ubuntu)
+#   DEPLOY_SSH_KEY  a private SSH key whose public half is on the server
+#   DEPLOY_PATH     path to the checkout on the server (e.g. /root/SiteBot/sitebot)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  # Never deploy a broken build: run the test suite first.
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: sitebot
+          POSTGRES_PASSWORD: sitebot
+          POSTGRES_DB: sitebot_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sitebot" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://sitebot:sitebot@localhost:5432/sitebot_test
+      EMBED_PROVIDER: local
+      EMBED_DIM: 384
+      ADMIN_API_KEY: ci-admin-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13", cache: pip }
+      - run: pip install -e ".[dev]"
+      - run: ruff check src tests
+      - run: pytest -q
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH deploy (pull + rebuild + migrate on boot)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
+            git pull --ff-only
+            docker compose -f docker-compose.prod.yml up -d --build
+            # Wait for health; migrations run automatically on API startup.
+            for i in $(seq 1 30); do
+              curl -sf https://${{ secrets.DEPLOY_HOST }}/healthz && break || sleep 3
+            done
+            docker image prune -f
