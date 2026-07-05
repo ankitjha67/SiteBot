@@ -162,6 +162,10 @@ class UpdateSite(BaseModel):
     extra_urls: list[str] | None = None
     recrawl_hours: int | None = Field(default=None, ge=0)
     render_js: bool | None = None
+    crm_provider: str | None = Field(default=None, pattern="^(hubspot|pipedrive|webhook|)$")
+    crm_api_key: str | None = None
+    booking_url: str | None = None
+    qualifying_questions: list[str] | None = None
     lead_capture_enabled: bool | None = None
     lead_prompt: str | None = None
     lead_webhook_url: str | None = None
@@ -232,6 +236,8 @@ class LeadRequest(BaseModel):
     note: str = ""
     conversation_id: int | None = None
     visitor_id: str | None = None
+    # Answers to the site's qualifying questions: {question: answer}.
+    qualification: dict[str, str] | None = None
 
 
 class HandoffRequest(BaseModel):
@@ -719,11 +725,13 @@ async def site_status(slug: str, ctx: Annotated[AuthContext, Depends(require_aut
         "widget_language", "digest_webhook_url", "guard_enabled",
         "guard_llm_audit", "guard_refusal_message", "guard_blocks",
         "notify_email", "twilio_from", "digest_channel", "avatar_style", "render_js",
+        "crm_provider", "booking_url",
     )
     out = {k: site[k] for k in keep if k in site}
     for jkey in (
         "suggested_questions", "canned_answers", "blocked_topics",
         "protected_secrets", "protected_topics", "extra_urls",
+        "qualifying_questions",
     ):
         v = site.get(jkey)
         out[jkey] = json.loads(v) if isinstance(v, str) else (v or [])
@@ -770,6 +778,7 @@ async def _apply_site_updates(site_id: int, updates: dict[str, Any]) -> list[str
     json_fields = {
         "suggested_questions", "canned_answers", "blocked_topics",
         "protected_secrets", "protected_topics", "extra_urls",
+        "qualifying_questions",
     }
     sets: list[str] = []
     values: list[Any] = []
@@ -1267,6 +1276,25 @@ async def sms_webhook(public_key: str, request: Request, tasks: BackgroundTasks)
     )
 
 
+@app.post("/v1/channels/voice/{public_key}")
+async def voice_webhook(public_key: str, request: Request) -> Response:
+    """Phone Voice AI: point a Twilio number's Voice webhook here. Each turn
+    Twilio POSTs the caller's transcribed speech; we answer from the site's
+    knowledge base and TwiML speaks it back, then listens again."""
+    site = await get_site_by_public_key(public_key)
+    if site is None or not site.twilio_account_sid:
+        raise HTTPException(status_code=404, detail="Unknown channel.")
+    form = {k: str(v) for k, v in (await request.form()).items()}
+    url = f"{settings.public_base_url.rstrip('/')}/v1/channels/voice/{public_key}"
+    if not channels.verify_twilio_signature(
+        site.twilio_auth_token, url, form,
+        request.headers.get("x-twilio-signature", ""),
+    ):
+        raise HTTPException(status_code=403, detail="Bad Twilio signature.")
+    twiml = await channels.handle_voice_turn(site, form, settings, url)
+    return Response(twiml, media_type="application/xml")
+
+
 @app.get("/v1/channels/messenger/{public_key}")
 async def messenger_verify(public_key: str, request: Request) -> Response:
     site = await get_site_by_public_key(public_key)
@@ -1387,6 +1415,8 @@ async def widget_config(key: str) -> dict:
         "suggested_questions": site.suggested_questions,
         "lead_capture_enabled": site.lead_capture_enabled,
         "lead_prompt": site.lead_prompt,
+        "booking_url": site.booking_url,
+        "qualifying_questions": site.qualifying_questions,
         "handoff_enabled": site.handoff_enabled,
         "hide_branding": site.hide_branding,
         "language": site.widget_language,
@@ -1494,12 +1524,31 @@ async def create_lead(body: LeadRequest, request: Request, tasks: BackgroundTask
     lead_id = await store.create_lead(
         site.id, body.conversation_id, str(body.email), body.name, body.note, body.visitor_id
     )
-    if site.lead_webhook_url:
+    # Qualification + a simple transparent score: answered questions and a
+    # message each add signal. Sales teams sort by this in the dashboard/CRM.
+    qual = {k: v for k, v in (body.qualification or {}).items() if v.strip()}
+    if qual or body.note:
+        score = min(100, 40 + 15 * len(qual) + (10 if body.note.strip() else 0))
+    else:
+        score = 20
+    pool = await get_pool()
+    await pool.execute(
+        "UPDATE leads SET qualification = $2, score = $3 WHERE id = $1",
+        lead_id, json.dumps(qual), score,
+    )
+    lead_payload = {
+        "lead_id": lead_id, "site": site.slug, "email": str(body.email),
+        "name": body.name, "note": body.note, "qualification": qual, "score": score,
+    }
+    # Native CRM sync runs in the background; failures never block the visitor.
+    if site.crm_provider:
+        from sitebot import crm
         tasks.add_task(
-            webhooks.deliver, site.lead_webhook_url, "lead.created",
-            {"lead_id": lead_id, "site": site.slug, "email": str(body.email),
-             "name": body.name, "note": body.note},
+            crm.push_lead, lead_id, site.crm_provider, site.crm_api_key,
+            site.lead_webhook_url, lead_payload,
         )
+    if site.lead_webhook_url and site.crm_provider != "webhook":
+        tasks.add_task(webhooks.deliver, site.lead_webhook_url, "lead.created", lead_payload)
     if site.notify_email and settings.smtp_configured:
         subject, text = email_out.lead_email(site.slug, str(body.email), body.name, body.note)
         tasks.add_task(email_out.send_email, settings, site.notify_email, subject, text)

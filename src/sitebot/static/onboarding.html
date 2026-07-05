@@ -208,6 +208,18 @@
         <div class="field full"><label>Lead/handoff webhook (Slack/Zapier) <button class="info" data-help="webhook">i</button></label>
           <input type="url" id="f_leadhook" placeholder="https://hooks.slack.com/services/…" /></div>
         <div class="helpbox full" id="h_webhook">A URL to POST leads/handoffs to — a Slack Incoming Webhook, Zapier/Make catch hook, or the client's own endpoint. Must be a public HTTPS URL.</div>
+        <div class="subhead">Sales: CRM, booking &amp; qualification</div>
+        <div class="field"><label>CRM <button class="info" data-help="crm">i</button></label>
+          <select id="f_crm"><option value="">None</option><option value="hubspot">HubSpot</option><option value="pipedrive">Pipedrive</option><option value="webhook">Generic webhook (above)</option></select></div>
+        <div class="field"><label>CRM API key</label>
+          <input type="password" id="f_crmkey" placeholder="HubSpot private-app token / Pipedrive token" /></div>
+        <div class="helpbox full" id="h_crm">Captured leads are pushed straight into the client's CRM. <b>HubSpot</b>: Settings → Integrations → Private Apps → token with <span class="num">crm.objects.contacts.write</span>. <b>Pipedrive</b>: Personal preferences → API token. Keys are encrypted at rest.</div>
+        <div class="field full"><label>Booking link (Calendly / cal.com) <button class="info" data-help="booking">i</button></label>
+          <input type="url" id="f_booking" placeholder="https://calendly.com/acme/intro-call" /></div>
+        <div class="helpbox full" id="h_booking">When a visitor asks for a demo, quote, or a call, the bot offers this scheduling link — 24/7 booking without a human.</div>
+        <div class="field full"><label>Qualifying questions (one per line, max 4)</label>
+          <textarea id="f_qual" placeholder="What's your company size?&#10;What's your budget range?&#10;When do you plan to start?"></textarea>
+          <div class="hint">Shown on the lead form; answers are scored and sent to the CRM.</div></div>
       </div></div>
     </div>
 
@@ -403,6 +415,8 @@ function save(){
     model_provider: $("f_provider").value || undefined, model_name: v("f_model"), llm_api_key: v("f_key"),
     lead_capture_enabled: chk("f_lead"), handoff_enabled: chk("f_handoff"),
     notify_email: v("f_notify"), lead_webhook_url: v("f_leadhook"), handoff_webhook_url: v("f_leadhook"),
+    crm_provider: $("f_crm").value || undefined, crm_api_key: v("f_crmkey"),
+    booking_url: v("f_booking"), qualifying_questions: lines("f_qual").slice(0, 4),
     telegram_bot_token: v("f_tg"),
     slack_bot_token: v("f_slack_tok"), slack_signing_secret: v("f_slack_sec"),
     whatsapp_token: v("f_wa_tok"), whatsapp_phone_id: v("f_wa_phone"), whatsapp_verify_token: v("f_wa_verify"), whatsapp_app_secret: v("f_wa_secret"),

@@ -23,7 +23,7 @@
   // UI strings (answers already follow the visitor's language; these are the
   // chrome). Selected per site via the dashboard's widget language setting.
   var STRINGS = {
-    en: { placeholder: "Type your question...", handoffPrompt: "Leave your email and a short message; a human will follow up.", handoffCta: "Request human help", leadCta: "Send", emailPh: "you@email.com", notePh: "Anything to add? (optional)", emailInvalid: "Please enter a valid email.", sendFail: "Could not send. Try again.", thanksLead: "Thanks. We will be in touch.", thanksHandoff: "Got it. A human will follow up soon.", errGeneric: "Sorry, something went wrong. Please try again.", errNetwork: "Sorry, I could not reach the server.", fbThanks: "Thanks for the feedback.", supportTag: "Support team", poweredBy: "Powered by SiteBot" },
+    en: { placeholder: "Type your question...", handoffPrompt: "Leave your email and a short message; a human will follow up.", handoffCta: "Request human help", leadCta: "Send", emailPh: "you@email.com", notePh: "Anything to add? (optional)", emailInvalid: "Please enter a valid email.", sendFail: "Could not send. Try again.", thanksLead: "Thanks. We will be in touch.", thanksHandoff: "Got it. A human will follow up soon.", errGeneric: "Sorry, something went wrong. Please try again.", errNetwork: "Sorry, I could not reach the server.", fbThanks: "Thanks for the feedback.", supportTag: "Support team", poweredBy: "Powered by SiteBot", bookCta: "Book a time" },
     es: { placeholder: "Escribe tu pregunta...", handoffPrompt: "Deja tu correo y un mensaje breve; una persona te responder\u00e1.", handoffCta: "Hablar con una persona", leadCta: "Enviar", emailPh: "tu@correo.com", notePh: "\u00bfAlgo que a\u00f1adir? (opcional)", emailInvalid: "Introduce un correo v\u00e1lido.", sendFail: "No se pudo enviar. Int\u00e9ntalo de nuevo.", thanksLead: "Gracias. Te contactaremos pronto.", thanksHandoff: "Recibido. Una persona te responder\u00e1 pronto.", errGeneric: "Lo sentimos, algo sali\u00f3 mal. Int\u00e9ntalo de nuevo.", errNetwork: "No se pudo conectar con el servidor.", fbThanks: "Gracias por tu opini\u00f3n.", supportTag: "Equipo de soporte", poweredBy: "Con tecnolog\u00eda de SiteBot" },
     fr: { placeholder: "Posez votre question...", handoffPrompt: "Laissez votre e-mail et un court message ; un humain vous r\u00e9pondra.", handoffCta: "Parler \u00e0 un humain", leadCta: "Envoyer", emailPh: "vous@email.com", notePh: "Autre chose \u00e0 ajouter ? (optionnel)", emailInvalid: "Veuillez saisir un e-mail valide.", sendFail: "\u00c9chec de l'envoi. R\u00e9essayez.", thanksLead: "Merci. Nous vous recontacterons.", thanksHandoff: "Bien re\u00e7u. Un humain vous r\u00e9pondra bient\u00f4t.", errGeneric: "D\u00e9sol\u00e9, une erreur s'est produite. R\u00e9essayez.", errNetwork: "Impossible de joindre le serveur.", fbThanks: "Merci pour votre retour.", supportTag: "\u00c9quipe support", poweredBy: "Propuls\u00e9 par SiteBot" },
     de: { placeholder: "Ihre Frage eingeben...", handoffPrompt: "Hinterlassen Sie Ihre E-Mail und eine kurze Nachricht; ein Mensch meldet sich.", handoffCta: "Mit einem Menschen sprechen", leadCta: "Senden", emailPh: "sie@email.de", notePh: "Noch etwas? (optional)", emailInvalid: "Bitte g\u00fcltige E-Mail eingeben.", sendFail: "Senden fehlgeschlagen. Bitte erneut versuchen.", thanksLead: "Danke. Wir melden uns.", thanksHandoff: "Angekommen. Ein Mensch meldet sich in K\u00fcrze.", errGeneric: "Entschuldigung, etwas ist schiefgelaufen.", errNetwork: "Server nicht erreichbar.", fbThanks: "Danke f\u00fcr Ihr Feedback.", supportTag: "Support-Team", poweredBy: "Bereitgestellt von SiteBot" },
@@ -50,6 +50,8 @@
     suggested_questions: [],
     lead_capture_enabled: false,
     lead_prompt: "Leave your email and we will get back to you.",
+    booking_url: "",
+    qualifying_questions: [],
     handoff_enabled: false,
     hide_branding: false,
     language: "en",
@@ -474,11 +476,25 @@
     var wrap = addBubble("assistant", "");
     wrap.querySelector(".text").textContent = config.lead_prompt;
     wrap.appendChild(buildContactForm(t("leadCta"), function (email, note, formEl) {
+      // Answers to the site's qualifying questions travel with the lead so
+      // sales sees a scored, qualified contact in their CRM, not a bare email.
+      var qual = {};
+      formEl.querySelectorAll(".lqual").forEach(function (input) {
+        if (input.value.trim()) qual[input.getAttribute("data-q")] = input.value.trim();
+      });
       post("/v1/leads", { key: PUBLIC_KEY, email: email, note: note,
+        qualification: qual,
         conversation_id: conversationId, visitor_id: visitorId })
-        .then(function () { formEl.innerHTML = "<div class='formdone'>" + t("thanksLead") + "</div>"; })
+        .then(function () {
+          var done = "<div class='formdone'>" + t("thanksLead") + "</div>";
+          if (config.booking_url) {
+            done += "<div style='margin-top:6px'><a href='" + config.booking_url +
+              "' target='_blank' rel='noopener' class='bookbtn'>" + t("bookCta") + "</a></div>";
+          }
+          formEl.innerHTML = done;
+        })
         .catch(function () { formEl.querySelector(".formerr").textContent = t("sendFail"); });
-    }));
+    }, config.qualifying_questions || []));
     scrollDown();
   }
 
@@ -494,11 +510,17 @@
     scrollDown();
   }
 
-  function buildContactForm(cta, onSubmit) {
+  function buildContactForm(cta, onSubmit, questions) {
     var form = document.createElement("div");
     form.className = "leadform";
+    var qhtml = "";
+    (questions || []).slice(0, 4).forEach(function (q) {
+      var safe = String(q).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+      qhtml += '<input type="text" class="lqual" data-q="' + safe + '" placeholder="' + safe + '" />';
+    });
     form.innerHTML =
       '<input type="email" class="lemail" placeholder="' + t("emailPh") + '" />' +
+      qhtml +
       '<textarea class="lnote" rows="2" placeholder="' + t("notePh") + '"></textarea>' +
       '<button class="lsend">' + cta + "</button>" +
       '<div class="formerr"></div>';
@@ -692,6 +714,7 @@
       ".leadform{margin-top:8px;display:flex;flex-direction:column;gap:6px;}",
       ".leadform input,.leadform textarea{border:1px solid #dcdce3;border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;}",
       ".leadform input:focus,.leadform textarea:focus{border-color:var(--accent);}",
+      ".bookbtn{display:inline-block;background:var(--accent);color:#fff;border-radius:8px;padding:7px 14px;font-size:13px;text-decoration:none;font-weight:600;}",
       ".leadform button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:7px 10px;cursor:pointer;font-size:13px;}",
       ".formerr{color:#dc2626;font-size:11px;min-height:12px;}",
       ".formdone{font-size:13px;color:#16a34a;padding:4px 0;}",

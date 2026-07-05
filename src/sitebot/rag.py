@@ -348,6 +348,13 @@ async def answer_stream(
     tone_rule = f"\n- Tone of voice: {site.tone.strip()}" if site.tone.strip() else ""
     custom = site.custom_instructions.strip()
     custom_rules = f"\n- Additional site-specific instructions:\n{custom}" if custom else ""
+    if site.booking_url:
+        # 24/7 sales: buying intent gets a concrete next step, not a dead end.
+        custom_rules += (
+            "\n- When the visitor asks for a demo, a call, a quote, or to speak "
+            f"with sales or a person, share this booking link: {site.booking_url} "
+            "and invite them to pick a time."
+        )
     if guard_active:
         # Confidentiality directive lists TOPICS only, never literal secrets.
         custom_rules += guard.confidentiality_directive(site.protected_topics)

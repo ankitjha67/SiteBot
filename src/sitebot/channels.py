@@ -247,6 +247,85 @@ async def handle_twilio_sms(site: SiteRow, body: bytes, settings: Settings) -> N
         log.exception("twilio SMS reply failed for site %s", site.slug)
 
 
+# ------------------------------ twilio Voice ------------------------------
+# Phone-call AI: Twilio answers the call, streams the caller's speech to us as
+# text (<Gather input="speech">), we run the same RAG pipeline, and Twilio
+# speaks the answer back (<Say>). One webhook URL handles every turn.
+
+_VOICE_LANG = {
+    "en": "en-US", "es": "es-ES", "fr": "fr-FR",
+    "de": "de-DE", "hi": "hi-IN", "pt": "pt-BR",
+}
+
+
+def _xml_escape(text: str) -> str:
+    from xml.sax.saxutils import escape
+
+    return escape(text, {'"': "&quot;"})
+
+
+def voice_answer_text(answer: str) -> str:
+    """Make an answer speakable: no citation markers, no markdown, capped so
+    a phone reply stays under ~45 seconds of speech."""
+    import re as _re
+
+    clean = _re.sub(r"\[\d+\]", "", answer)
+    clean = _re.sub(r"[*_`#>|]", "", clean)
+    clean = " ".join(clean.split())
+    if len(clean) > 600:
+        clean = clean[:600].rsplit(". ", 1)[0] + "."
+    return clean
+
+
+def twiml_voice_turn(say_text: str, action_url: str, language: str) -> str:
+    """One conversational turn: speak, then listen for the next question."""
+    lang = _VOICE_LANG.get(language, "en-US")
+    say = _xml_escape(say_text)
+    goodbye = _xml_escape(_VOICE_GOODBYE.get(language, _VOICE_GOODBYE["en"]))
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?><Response>'
+        f'<Gather input="speech" language="{lang}" speechTimeout="auto" '
+        f'action="{_xml_escape(action_url)}" method="POST">'
+        f'<Say language="{lang}">{say}</Say>'
+        "</Gather>"
+        f'<Say language="{lang}">{goodbye}</Say>'
+        "</Response>"
+    )
+
+
+_VOICE_GOODBYE = {
+    "en": "Thanks for calling. Goodbye!",
+    "es": "Gracias por llamar. Hasta luego.",
+    "fr": "Merci de votre appel. Au revoir.",
+    "de": "Danke fuer Ihren Anruf. Auf Wiederhoeren.",
+    "hi": "Call karne ke liye dhanyavaad. Namaste!",
+    "pt": "Obrigado pela ligacao. Ate logo.",
+}
+
+
+async def handle_voice_turn(
+    site: SiteRow, form: dict[str, str], settings: Settings, action_url: str
+) -> str:
+    """Return the TwiML for this turn of the phone conversation."""
+    speech = (form.get("SpeechResult") or "").strip()
+    caller = form.get("From", "caller")
+    if not speech:
+        # Call start (or nothing heard): greet and listen.
+        greeting = site.welcome_message or f"Hello, you have reached {site.display_name}."
+        return twiml_voice_turn(
+            voice_answer_text(greeting), action_url, site.widget_language
+        )
+    try:
+        answer = await _collect_answer(site, speech, settings, f"voice_{caller}")
+    except Exception:  # noqa: BLE001 - a model hiccup must not drop the call
+        log.exception("voice answer failed for site %s", site.slug)
+        answer = "Sorry, I hit a problem answering that. Could you try asking again?"
+    return twiml_voice_turn(
+        voice_answer_text(answer or "Sorry, I do not have that information."),
+        action_url, site.widget_language,
+    )
+
+
 # --------------------------- messenger / instagram ---------------------------
 def parse_messenger_payload(payload: dict[str, Any]) -> list[tuple[str, str]]:
     """Return [(sender_id, text)] for incoming Messenger/Instagram messages."""

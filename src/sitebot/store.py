@@ -73,6 +73,10 @@ class SiteRow:
     avatar_style: str = ""
     llm_api_key: str = ""
     extra_urls: list[str] = field(default_factory=list)
+    crm_provider: str = ""
+    crm_api_key: str = ""
+    booking_url: str = ""
+    qualifying_questions: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -98,7 +102,8 @@ _SITE_COLUMNS = (
     "s.guard_refusal_message, s.notify_email, s.twilio_account_sid, s.twilio_auth_token, "
     "s.twilio_from, s.messenger_page_token, s.messenger_verify_token, s.messenger_app_secret, "
     "s.teams_app_id, s.teams_app_password, s.digest_channel, s.avatar_style, "
-    "s.llm_api_key, s.extra_urls"
+    "s.llm_api_key, s.extra_urls, s.crm_provider, s.crm_api_key, "
+    "s.booking_url, s.qualifying_questions"
 )
 
 
@@ -107,6 +112,7 @@ SECRET_COLUMNS = (
     "llm_api_key", "telegram_bot_token", "slack_bot_token", "slack_signing_secret",
     "whatsapp_token", "whatsapp_app_secret", "twilio_auth_token",
     "teams_app_password", "messenger_page_token", "messenger_app_secret",
+    "crm_api_key",
 )
 
 
@@ -117,6 +123,7 @@ def _to_site(row: Any) -> SiteRow:
     for key in (
         "suggested_questions", "canned_answers", "blocked_topics",
         "protected_secrets", "protected_topics", "extra_urls",
+        "qualifying_questions",
     ):
         v = d.get(key)
         if isinstance(v, str):

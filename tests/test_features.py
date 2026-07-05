@@ -406,3 +406,25 @@ def test_webhook_summary_lines() -> None:
     assert "a@b.com" in line
     line2 = _summary_line("handoff.requested", {"email": "", "message": "help"})
     assert "handoff" in line2.lower()
+
+
+def test_voice_twiml_and_answer_cleanup() -> None:
+    from sitebot.channels import twiml_voice_turn, voice_answer_text
+
+    long = "Great question! " * 60 + "[1] **bold** `code`"
+    clean = voice_answer_text(long)
+    assert len(clean) <= 601 and "[1]" not in clean and "*" not in clean
+
+    xml = twiml_voice_turn('Say "hi" & listen', "https://api.x/v1/channels/voice/pk", "es")
+    assert xml.startswith('<?xml version="1.0"')
+    assert '<Gather input="speech" language="es-ES"' in xml
+    assert "&amp;" in xml and "&quot;hi&quot;" in xml  # XML-escaped
+    assert 'action="https://api.x/v1/channels/voice/pk"' in xml
+
+
+async def test_crm_webhook_rejects_private_hosts() -> None:
+    from sitebot.crm import _webhook
+
+    # SSRF guard: internal targets must be refused before any request is made.
+    assert await _webhook("http://169.254.169.254/latest", {"email": "a@b.c"}) is False
+    assert await _webhook("http://localhost:9999/hook", {"email": "a@b.c"}) is False
