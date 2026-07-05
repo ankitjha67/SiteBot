@@ -335,14 +335,16 @@
         </div>
       </div>
       <div class="card" id="billingCard">
-        <div class="card-head"><h3>Plan &amp; billing</h3><span class="meta-inline">Self-serve upgrade via Stripe</span></div>
+        <div class="card-head"><h3>Plan &amp; Features</h3><span class="meta-inline" id="planTotal"></span></div>
         <div class="card-body">
-          <div class="formgrid">
-            <div><b>Starter</b> — 2,000 msgs/mo<br><button class="btn ghost" style="margin-top:6px" onclick="upgrade('starter')">Choose</button></div>
-            <div><b>Growth</b> — 10,000 msgs/mo<br><button class="btn ghost" style="margin-top:6px" onclick="upgrade('growth')">Choose</button></div>
-            <div><b>Business</b> — 40,000 msgs/mo<br><button class="btn ghost" style="margin-top:6px" onclick="upgrade('business')">Choose</button></div>
+          <div class="microlabel" style="margin-bottom:8px">Bundles</div>
+          <div class="formgrid" id="bundleCards"></div>
+          <div class="microlabel" style="margin:18px 0 8px">À la carte — turn any feature on or off</div>
+          <div id="featureList"></div>
+          <div style="display:flex;align-items:center;gap:14px;margin-top:16px">
+            <button class="btn" onclick="subscribe()">Subscribe / update payment</button>
+            <span class="hint" id="billResult"></span>
           </div>
-          <div class="hint" id="billResult" style="margin-top:8px">Usage and current plan are shown in the sidebar. Checkout requires Stripe keys on the platform.</div>
         </div>
       </div>
       <div class="card">
@@ -835,6 +837,7 @@ function boot() {
       $("accountKpis").innerHTML = "";
       $("accountKpis").style.display = "none";
       $("rotateCard").style.display = "none";  // admin key is not a tenant key
+      $("billingCard").style.display = "none"; // plan is per-tenant, not for the global admin
     } else {
       $("who").textContent = me.name;
       $("whoPlan").textContent = me.plan + " plan";
@@ -876,6 +879,7 @@ function showTeam() {
   $("sitenav").classList.remove("on");
   switchView("view-team", "nav-team");
   loadTeamKeys();
+  loadPlan();
 }
 function loadTeamKeys() {
   api("/v1/tenants/me/keys").then(function (rows) {
@@ -906,15 +910,47 @@ function revokeTeamKey(id) {
     .then(function () { toast("Key revoked"); loadTeamKeys(); })
     .catch(function (e) { toast(e.message, true); });
 }
-function upgrade(plan) {
-  // price_id: operators map real Stripe price ids via STRIPE_PRICE_MAP_JSON;
-  // the plan name works as the id when the map uses plan-named prices.
+function money(cents) { return "$" + (cents / 100).toFixed(0); }
+function loadPlan() {
+  api("/v1/tenants/me/plan").then(renderPlan).catch(function (e) { $("billResult").textContent = e.message; });
+}
+function renderPlan(p) {
+  $("planTotal").textContent = money(p.monthly_cost_cents) + "/mo · " + esc(p.bundle_name) + " plan";
+  $("bundleCards").innerHTML = p.bundles.map(function (b) {
+    var on = b.key === p.bundle;
+    return "<div style='border:1px solid " + (on ? "var(--pine)" : "var(--line)") +
+      ";border-radius:10px;padding:12px;background:" + (on ? "var(--pine-soft)" : "var(--surface)") + "'>" +
+      "<b>" + esc(b.name) + "</b> <span class='num'>" + money(b.price_cents) + "/mo</span>" +
+      "<div class='hint' style='margin:4px 0 8px'>" + esc(b.blurb) + "</div>" +
+      (on ? "<span class='pill ok'>Current</span>"
+          : "<button class='btn ghost' onclick=\"chooseBundle('" + b.key + "')\">Choose</button>") + "</div>";
+  }).join("");
+  $("featureList").innerHTML = p.features.map(function (f) {
+    var badge = f.included_in_bundle
+      ? "<span class='pill ok'>in bundle</span>"
+      : (f.enabled ? "<button class='btn ghost' onclick=\"toggleFeature('" + f.key + "',false)\">Remove</button>"
+                   : "<button class='btn' onclick=\"toggleFeature('" + f.key + "',true)\">Add " + money(f.price_cents) + "/mo</button>");
+    return "<div style='display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)'>" +
+      "<span style='width:8px;height:8px;border-radius:50%;background:" + (f.enabled ? "var(--pine)" : "var(--line-strong)") + ";flex:0 0 auto'></span>" +
+      "<div style='flex:1'><b style='font-size:13.5px'>" + esc(f.name) + "</b> <span class='num' style='color:var(--muted)'>" + money(f.price_cents) + "/mo</span>" +
+      "<div class='hint'>" + esc(f.blurb) + "</div></div>" + badge + "</div>";
+  }).join("");
+}
+function chooseBundle(key) {
+  api("/v1/tenants/me/bundle", {method: "POST", body: JSON.stringify({bundle: key})})
+    .then(function (p) { renderPlan(p); toast("Switched to " + p.bundle_name); }).catch(function (e) { toast(e.message, true); });
+}
+function toggleFeature(key, enable) {
+  api("/v1/tenants/me/features", {method: "POST", body: JSON.stringify({feature: key, enable: enable})})
+    .then(function (p) { renderPlan(p); toast(enable ? "Feature added" : "Feature removed"); }).catch(function (e) { toast(e.message, true); });
+}
+function subscribe() {
   api("/v1/billing/checkout", {method: "POST", body: JSON.stringify(
-    {price_id: plan, success_url: location.href, cancel_url: location.href})})
+    {price_id: "plan", success_url: location.href, cancel_url: location.href})})
     .then(function (r) {
       if (r.checkout_url) { window.open(r.checkout_url, "_blank"); }
-      else { $("billResult").textContent = r.detail || "Checkout is not configured on this platform yet."; }
-    }).catch(function (e) { $("billResult").textContent = e.message; });
+      else { $("billResult").textContent = "Connect Stripe keys to take live payment. Your plan is saved."; }
+    }).catch(function () { $("billResult").textContent = "Your plan is saved. Add Stripe keys to charge automatically."; });
 }
 function createUser() {
   var email = $("nuEmail").value.trim(), pw = $("nuPw").value;

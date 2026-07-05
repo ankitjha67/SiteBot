@@ -268,6 +268,42 @@ async def export_tenant_data(tenant_id: int) -> dict:
     return out
 
 
+async def get_entitlements(tenant_id: int) -> tuple[str, list[str]]:
+    """Return (bundle, alacarte_features) for a tenant."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT bundle, features FROM tenants WHERE id = $1", tenant_id
+    )
+    if row is None:
+        return "", []
+    feats = row["features"]
+    feats = json.loads(feats) if isinstance(feats, str) else (feats or [])
+    return row["bundle"] or "", list(feats)
+
+
+async def effective_features(tenant_id: int) -> frozenset[str]:
+    from sitebot.features import effective_features as _eff
+
+    bundle, alacarte = await get_entitlements(tenant_id)
+    return _eff(bundle, alacarte)
+
+
+async def tenant_has_feature(tenant_id: int, key: str) -> bool:
+    return key in await effective_features(tenant_id)
+
+
+async def set_bundle(tenant_id: int, bundle: str) -> None:
+    pool = await get_pool()
+    await pool.execute("UPDATE tenants SET bundle = $2 WHERE id = $1", tenant_id, bundle)
+
+
+async def set_alacarte_features(tenant_id: int, features: list[str]) -> None:
+    pool = await get_pool()
+    await pool.execute(
+        "UPDATE tenants SET features = $2 WHERE id = $1", tenant_id, json.dumps(features)
+    )
+
+
 async def apply_detected_branding(site_id: int, brand: dict[str, str]) -> None:
     """Apply crawler-detected colour/font once, without overwriting anything the
     operator already customised. Marks the site brand_extracted so re-crawls

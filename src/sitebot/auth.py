@@ -23,9 +23,26 @@ class AuthContext:
     is_admin: bool
     tenant_id: int | None  # None for the global admin
     role: str = "admin"    # admin | viewer (team keys can be read-only)
+    features: frozenset[str] = frozenset()  # tenant's effective feature set
 
     def can_access_tenant(self, tenant_id: int) -> bool:
         return self.is_admin or self.tenant_id == tenant_id
+
+    def has_feature(self, key: str) -> bool:
+        return self.is_admin or key in self.features
+
+
+def require_feature(ctx: AuthContext, key: str) -> None:
+    """Gate a paid feature. 402 Payment Required when the client hasn't
+    subscribed to it, so the dashboard can prompt an upgrade."""
+    from sitebot.features import FEATURES
+
+    if not ctx.has_feature(key):
+        name = FEATURES.get(key, {}).get("name", key)
+        raise HTTPException(
+            status_code=402,
+            detail=f"'{name}' is not enabled on this plan. Add it from Plan & Features.",
+        )
 
 
 def ensure_writer(ctx: AuthContext) -> None:
@@ -86,7 +103,12 @@ async def _session_context(token: str) -> AuthContext | None:
     )
     if row is None:
         return None
-    return AuthContext(is_admin=False, tenant_id=int(row["tenant_id"]), role=row["role"])
+    from sitebot import store
+
+    feats = await store.effective_features(int(row["tenant_id"]))
+    return AuthContext(
+        is_admin=False, tenant_id=int(row["tenant_id"]), role=row["role"], features=feats
+    )
 
 
 async def require_auth(x_api_key: Annotated[str, Header()] = "") -> AuthContext:
@@ -94,6 +116,8 @@ async def require_auth(x_api_key: Annotated[str, Header()] = "") -> AuthContext:
     settings = get_settings()
     if x_api_key and secrets.compare_digest(x_api_key, settings.admin_api_key):
         return AuthContext(is_admin=True, tenant_id=None)
+    from sitebot import store
+
     if x_api_key.startswith("tk_"):
         key_hash = hash_key(x_api_key)
         pool = await get_pool()
@@ -101,14 +125,17 @@ async def require_auth(x_api_key: Annotated[str, Header()] = "") -> AuthContext:
             "SELECT id FROM tenants WHERE api_key_hash = $1", key_hash
         )
         if tenant_id is not None:
-            return AuthContext(is_admin=False, tenant_id=int(tenant_id), role="admin")
+            feats = await store.effective_features(int(tenant_id))
+            return AuthContext(
+                is_admin=False, tenant_id=int(tenant_id), role="admin", features=feats
+            )
         # Team member keys carry a role and can be revoked individually.
-        from sitebot import store
-
         member = await store.find_tenant_key(key_hash)
         if member is not None:
+            feats = await store.effective_features(member["tenant_id"])
             return AuthContext(
-                is_admin=False, tenant_id=member["tenant_id"], role=member["role"]
+                is_admin=False, tenant_id=member["tenant_id"],
+                role=member["role"], features=feats,
             )
     if x_api_key.startswith("st_"):
         # Browser session from an email+password login.

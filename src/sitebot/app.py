@@ -35,6 +35,7 @@ from sitebot.auth import (
     generate_tenant_key,
     require_admin,
     require_auth,
+    require_feature,
 )
 from sitebot.config import get_settings
 from sitebot.crypto import encrypt_secret
@@ -570,6 +571,7 @@ def _csv(rows: list[dict], columns: list[str]) -> Response:
 async def report_conversations(
     slug: str, ctx: Annotated[AuthContext, Depends(require_auth)], days: int = 30
 ) -> Response:
+    require_feature(ctx, "analytics_pro")
     site = await authorize_site(ctx, slug)
     pool = await get_pool()
     rows = await pool.fetch(
@@ -590,6 +592,7 @@ async def report_conversations(
 async def report_leads(
     slug: str, ctx: Annotated[AuthContext, Depends(require_auth)], days: int = 90
 ) -> Response:
+    require_feature(ctx, "analytics_pro")
     site = await authorize_site(ctx, slug)
     pool = await get_pool()
     # Sales sorts by score, so hottest leads come first and the qualification
@@ -644,6 +647,103 @@ async def offboard_tenant(
         )
     sites_removed = await store.delete_tenant(tenant_id)
     return {"deleted_tenant": tenant_id, "sites_removed": sites_removed}
+
+
+@app.get("/v1/features/catalog")
+async def features_catalog() -> dict:
+    """The à-la-carte menu + bundles with prices. Public so pricing pages can
+    render it."""
+    from sitebot import features
+    return features.catalog()
+
+
+def _plan_summary(bundle: str, alacarte: list[str]) -> dict:
+    """A client's plan with every feature flagged enabled/locked and priced."""
+    from sitebot import features
+    eff = features.effective_features(bundle, alacarte)
+    bundle_feats = set(features.BUNDLES.get(bundle, {}).get("features", []))
+    return {
+        "bundle": bundle,
+        "bundle_name": features.BUNDLES.get(bundle, {}).get("name", "Custom"),
+        "alacarte": [k for k in alacarte if k in features.FEATURES],
+        "monthly_cost_cents": features.monthly_cost_cents(bundle, alacarte),
+        "features": [
+            {
+                "key": k, "name": v["name"], "blurb": v["blurb"],
+                "price_cents": v["price_cents"],
+                "enabled": k in eff,
+                "included_in_bundle": k in bundle_feats,
+            }
+            for k, v in features.FEATURES.items()
+        ],
+        "bundles": [{"key": k, **v} for k, v in features.BUNDLES.items()],
+    }
+
+
+@app.get("/v1/tenants/me/plan")
+async def my_plan(ctx: Annotated[AuthContext, Depends(require_auth)]) -> dict:
+    """What this client has enabled and what it costs — the à-la-carte view."""
+    if ctx.tenant_id is None:
+        raise HTTPException(status_code=400, detail="Use a tenant credential.")
+    bundle, alacarte = await store.get_entitlements(ctx.tenant_id)
+    return _plan_summary(bundle, alacarte)
+
+
+@app.post("/v1/tenants/me/bundle")
+async def choose_bundle(
+    body: dict, ctx: Annotated[AuthContext, Depends(require_auth)]
+) -> dict:
+    """Pick a pre-made bundle. In production this creates/updates the Stripe
+    subscription; here it sets entitlements and returns the new monthly cost."""
+    from sitebot import features
+    ensure_writer(ctx)
+    if ctx.tenant_id is None:
+        raise HTTPException(status_code=400, detail="Use a tenant credential.")
+    bundle = str(body.get("bundle", ""))
+    if bundle not in features.BUNDLES:
+        raise HTTPException(status_code=400, detail="Unknown bundle.")
+    await store.set_bundle(ctx.tenant_id, bundle)
+    _, alacarte = await store.get_entitlements(ctx.tenant_id)
+    return _plan_summary(bundle, alacarte)
+
+
+@app.post("/v1/tenants/me/features")
+async def update_features(
+    body: dict, ctx: Annotated[AuthContext, Depends(require_auth)]
+) -> dict:
+    """Toggle an à-la-carte feature. Enabling one adds its price to the monthly
+    bill immediately; disabling removes it (features already in the bundle stay
+    on and free)."""
+    from sitebot import features
+    ensure_writer(ctx)
+    if ctx.tenant_id is None:
+        raise HTTPException(status_code=400, detail="Use a tenant credential.")
+    key = str(body.get("feature", ""))
+    if key not in features.FEATURES:
+        raise HTTPException(status_code=400, detail="Unknown feature.")
+    bundle, alacarte = await store.get_entitlements(ctx.tenant_id)
+    current = set(alacarte)
+    if body.get("enable"):
+        current.add(key)
+    else:
+        current.discard(key)
+    await store.set_alacarte_features(ctx.tenant_id, sorted(current))
+    return _plan_summary(bundle, sorted(current))
+
+
+@app.post("/v1/tenants/{tenant_id}/plan")
+async def admin_set_plan(
+    tenant_id: int, body: dict, _: Annotated[AuthContext, Depends(require_admin)]
+) -> dict:
+    """Operator sets a client's bundle and à-la-carte features directly."""
+    from sitebot import features
+    bundle = str(body.get("bundle", ""))
+    if bundle and bundle not in features.BUNDLES:
+        raise HTTPException(status_code=400, detail="Unknown bundle.")
+    alacarte = [k for k in (body.get("features") or []) if k in features.FEATURES]
+    await store.set_bundle(tenant_id, bundle)
+    await store.set_alacarte_features(tenant_id, alacarte)
+    return _plan_summary(bundle, alacarte)
 
 
 @app.get("/v1/tenants/me/export")
@@ -1053,6 +1153,7 @@ async def connect_telegram(
     slug: str, body: TelegramSetup, ctx: Annotated[AuthContext, Depends(require_auth)]
 ) -> dict:
     ensure_writer(ctx)
+    require_feature(ctx, "channels")
     site = await authorize_site(ctx, slug)
     pool = await get_pool()
     await pool.execute(
@@ -1146,6 +1247,7 @@ async def create_site_action(
     slug: str, body: ActionCreate, ctx: Annotated[AuthContext, Depends(require_auth)]
 ) -> dict:
     ensure_writer(ctx)
+    require_feature(ctx, "ai_actions")
     site = await authorize_site(ctx, slug)
     import re
 
@@ -1204,6 +1306,7 @@ async def connect_whatsapp(
     slug: str, body: WhatsAppSetup, ctx: Annotated[AuthContext, Depends(require_auth)]
 ) -> dict:
     ensure_writer(ctx)
+    require_feature(ctx, "channels")
     site = await authorize_site(ctx, slug)
     pool = await get_pool()
     await pool.execute(
@@ -1297,6 +1400,8 @@ async def voice_webhook(public_key: str, request: Request) -> Response:
     site = await get_site_by_public_key(public_key)
     if site is None or not site.twilio_account_sid:
         raise HTTPException(status_code=404, detail="Unknown channel.")
+    if not await store.tenant_has_feature(site.tenant_id, "voice"):
+        raise HTTPException(status_code=402, detail="Phone Voice AI is not on this plan.")
     form = {k: str(v) for k, v in (await request.form()).items()}
     url = f"{settings.public_base_url.rstrip('/')}/v1/channels/voice/{public_key}"
     if not channels.verify_twilio_signature(
@@ -1556,7 +1661,8 @@ async def create_lead(body: LeadRequest, request: Request, tasks: BackgroundTask
         "name": body.name, "note": body.note, "qualification": qual, "score": score,
     }
     # Native CRM sync runs in the background; failures never block the visitor.
-    if site.crm_provider:
+    # Only when the client's plan includes the CRM feature.
+    if site.crm_provider and await store.tenant_has_feature(site.tenant_id, "crm"):
         from sitebot import crm
         tasks.add_task(
             crm.push_lead, lead_id, site.crm_provider, site.crm_api_key,

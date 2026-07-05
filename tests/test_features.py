@@ -446,3 +446,24 @@ def test_branding_detects_color_and_font() -> None:
 
     # Generic families never win.
     assert detect_font("<style>body{font-family:Arial,sans-serif}</style>") == ("", "")
+
+
+def test_feature_pricing_and_effective_set() -> None:
+    from sitebot.features import BUNDLES, effective_features, monthly_cost_cents
+
+    # Starter = core only, base price, no add-on features.
+    assert monthly_cost_cents("starter", []) == BUNDLES["starter"]["price_cents"]
+    assert effective_features("starter", []) == frozenset()
+
+    # À la carte on starter: base + each add-on's price.
+    eff = effective_features("starter", ["channels", "voice"])
+    assert eff == {"channels", "voice"}
+    assert monthly_cost_cents("starter", ["channels", "voice"]) == 4900 + 3900 + 7900
+
+    # A feature already in the bundle is not double-charged.
+    assert "channels" in BUNDLES["growth"]["features"]
+    assert monthly_cost_cents("growth", ["channels"]) == BUNDLES["growth"]["price_cents"]
+
+    # Business includes everything.
+    from sitebot.features import ALL_FEATURE_KEYS
+    assert effective_features("business", []) == ALL_FEATURE_KEYS
