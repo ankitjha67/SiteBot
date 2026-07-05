@@ -1,0 +1,9 @@
+[
+  {"question": "What does AI ING do?", "expect_url": "aiing.in", "expect_any": ["design", "build", "ship", "AI systems"]},
+  {"question": "Who is the founder of AI ING?", "expect_url": "leadership", "expect_any": ["Aasu"]},
+  {"question": "What is Cortex?", "expect_url": "cortex", "expect_any": ["agentic", "workflow", "agents"]},
+  {"question": "What is OverlapX?", "expect_url": "overlapx", "expect_any": ["mutual fund", "overlap", "funds"]},
+  {"question": "How many funds can I compare on OverlapX?", "expect_url": "overlapx", "expect_any": ["20"]},
+  {"question": "Which fund houses does OverlapX support?", "expect_url": "overlapx", "expect_any": ["SBI", "HDFC", "ICICI"]},
+  {"question": "How quickly does AI ING respond to enquiries?", "expect_url": "contact", "expect_any": ["few hours"]}
+]

@@ -1,0 +1,7 @@
+# Automatic HTTPS reverse proxy for SiteBot.
+# SITEBOT_DOMAIN (e.g. bot.aiing.in) is read from the environment; Caddy
+# provisions and renews a Let's Encrypt certificate for it automatically.
+{$SITEBOT_DOMAIN} {
+	encode gzip
+	reverse_proxy api:8000
+}

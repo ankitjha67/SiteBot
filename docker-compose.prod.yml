@@ -1,0 +1,99 @@
+# Production stack with automatic HTTPS. One command to go live:
+#   1. point a DNS A record (e.g. bot.aiing.in) at this server's public IP
+#   2. cp .env.example .env  and fill in the values (SITEBOT_DOMAIN, keys)
+#   3. docker compose -f docker-compose.prod.yml up -d --build
+# Caddy fetches a Let's Encrypt cert for $SITEBOT_DOMAIN and proxies to the API.
+# Only 80/443 are exposed publicly; Postgres/Redis/API stay on the internal net.
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sitebot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: sitebot
+    volumes:
+      - sitebot_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sitebot"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - sitebot_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment: &app_env
+      DATABASE_URL: postgresql://sitebot:${POSTGRES_PASSWORD:-change-me}@db:5432/sitebot
+      REDIS_URL: redis://redis:6379/0
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?set a strong admin key}
+      SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:?set a strong encryption key}
+      PUBLIC_BASE_URL: https://${SITEBOT_DOMAIN:?set your domain}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      # --- answer model (pick one) ---
+      ANSWER_PROVIDER: ${ANSWER_PROVIDER:-anthropic}
+      ANSWER_MODEL: ${ANSWER_MODEL:-claude-haiku-4-5}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_COMPATIBLE_BASE_URL: ${OPENAI_COMPATIBLE_BASE_URL:-}
+      # --- embeddings (local = free, private) ---
+      EMBED_PROVIDER: ${EMBED_PROVIDER:-local}
+      EMBED_DIM: ${EMBED_DIM:-384}
+      # --- quality + ops ---
+      RERANK_ENABLED: ${RERANK_ENABLED:-true}
+      # --- payments (optional) ---
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      BILLING_CURRENCY: ${BILLING_CURRENCY:-inr}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      # --- email (optional) ---
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-SiteBot <bot@example.com>}
+    expose:
+      - "8000"
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ["sitebot", "worker"]
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment: *app_env
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [api]
+    environment:
+      SITEBOT_DOMAIN: ${SITEBOT_DOMAIN:?set your domain}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  sitebot_pgdata:
+  sitebot_redis:
+  caddy_data:
+  caddy_config:
