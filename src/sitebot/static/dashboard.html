@@ -172,7 +172,7 @@
                    border: 0; border-radius: 5px; padding: 3px 9px; font-size: 11px; font-family: var(--sans); }
   .snippet .copy:hover { background: #3a5748; }
 
-  .qrow { display: flex; justify-content: space-between; gap: 14px; padding: 9px 18px; border-bottom: 1px solid var(--line); }
+  .qrow { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; padding: 9px 18px; border-bottom: 1px solid var(--line); }
   .qrow:last-child { border-bottom: 0; }
   .qrow .q { font-size: 13.5px; }
   .qrow .c { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
@@ -1298,10 +1298,31 @@ function loadAnalytics() {
 /* ------------------------------ tabs ------------------------------ */
 function loadUnanswered() {
   api("/v1/sites/" + currentSlug + "/analytics/unanswered").then(function (rows) {
-    $("unansweredT").innerHTML = rows.map(function (r) {
-      return "<div class='qrow'><span class='q'>" + esc(r.question) + "</span><span class='c'>" + fmtDate(r.asked_at) + "</span></div>";
+    $("unansweredT").innerHTML = rows.map(function (r, i) {
+      var q = esc(r.question);
+      // Learning loop: type the correct answer once and it enters the
+      // knowledge base as a Q&A, so this gap is answered next time.
+      return "<div class='qrow teach' data-q=\"" + q.replace(/"/g, "&quot;") + "\">" +
+        "<div style='flex:1'><div class='q'>" + q + "</div>" +
+        "<div style='display:flex;gap:6px;margin-top:6px'>" +
+        "<input class='teachA' id='ta" + i + "' placeholder='Type the correct answer to teach the bot...' style='flex:1;font-size:13px' />" +
+        "<button class='btn ghost' onclick='teachAnswer(" + i + ")'>Teach</button></div></div>" +
+        "<span class='c'>" + fmtDate(r.asked_at) + "</span></div>";
     }).join("") || "<div class='empty'><span class='microlabel'>All clear</span>Every question in the window was answered from the knowledge base.</div>";
   });
+}
+function teachAnswer(i) {
+  var row = $("ta" + i).closest(".qrow");
+  var question = row.getAttribute("data-q");
+  var answer = $("ta" + i).value.trim();
+  if (!answer) { toast("Type the answer first", true); return; }
+  api("/v1/sites/" + currentSlug + "/sources", {method: "POST",
+      body: JSON.stringify({kind: "qa", question: question, answer: answer})})
+    .then(function () {
+      row.style.opacity = "0.5";
+      row.innerHTML = "<span class='q'>&#10003; Taught: <b>" + esc(question) + "</b> &mdash; the bot will answer this from now on.</span>";
+      toast("Added to the knowledge base");
+    }).catch(function (e) { toast(e.message, true); });
 }
 function loadLeads() {
   api("/v1/sites/" + currentSlug + "/leads").then(function (rows) {
