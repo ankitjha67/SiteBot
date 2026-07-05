@@ -166,6 +166,8 @@ class UpdateSite(BaseModel):
     crm_api_key: str | None = None
     booking_url: str | None = None
     qualifying_questions: list[str] | None = None
+    widget_font: str | None = None
+    widget_font_url: str | None = None
     lead_capture_enabled: bool | None = None
     lead_prompt: str | None = None
     lead_webhook_url: str | None = None
@@ -736,7 +738,7 @@ async def site_status(slug: str, ctx: Annotated[AuthContext, Depends(require_aut
         "widget_language", "digest_webhook_url", "guard_enabled",
         "guard_llm_audit", "guard_refusal_message", "guard_blocks",
         "notify_email", "twilio_from", "digest_channel", "avatar_style", "render_js",
-        "crm_provider", "booking_url",
+        "crm_provider", "booking_url", "widget_font", "widget_font_url",
     )
     out = {k: site[k] for k in keep if k in site}
     for jkey in (
@@ -1432,6 +1434,8 @@ async def widget_config(key: str) -> dict:
         "hide_branding": site.hide_branding,
         "language": site.widget_language,
         "avatar_style": site.avatar_style,
+        "widget_font": site.widget_font,
+        "widget_font_url": site.widget_font_url,
         "proactive_message": site.proactive_message,
         "proactive_delay_s": site.proactive_delay_s,
         "last_indexed_at": site.last_indexed_at.isoformat() if site.last_indexed_at else None,

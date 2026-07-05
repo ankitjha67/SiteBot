@@ -109,6 +109,17 @@ async def ingest_site(
         await store.set_site_status(site_id, "error", "No content extracted from the site.")
         return 0, 0
 
+    # Auto-branding: match the assistant to the client's site colour + font,
+    # once, without overwriting any manual choices. Best-effort; never fatal.
+    try:
+        from sitebot import branding
+
+        brand = await branding.extract_branding(start_url, settings)
+        if brand:
+            await store.apply_detected_branding(site_id, brand)
+    except Exception:  # noqa: BLE001 - branding must never break ingestion
+        log.warning("branding extraction failed for site %s", site_id)
+
     await store.set_site_status(site_id, "indexing")
 
     # Diff against the last crawl using content hashes.

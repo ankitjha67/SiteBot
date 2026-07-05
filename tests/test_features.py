@@ -428,3 +428,21 @@ async def test_crm_webhook_rejects_private_hosts() -> None:
     # SSRF guard: internal targets must be refused before any request is made.
     assert await _webhook("http://169.254.169.254/latest", {"email": "a@b.c"}) is False
     assert await _webhook("http://localhost:9999/hook", {"email": "a@b.c"}) is False
+
+
+def test_branding_detects_color_and_font() -> None:
+    from sitebot.branding import detect_color, detect_font
+
+    # theme-color meta is the strongest colour signal.
+    html = ('<meta name="theme-color" content="#0a7d55">'
+            '<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap">')
+    assert detect_color(html) == "#0a7d55"
+    family, url = detect_font(html)
+    assert family == "Poppins" and "Poppins" in url
+
+    # No meta -> most common saturated colour; neutrals are ignored.
+    css = "<style>.a{color:#e11d48}.b{background:#e11d48}.c{color:#333}.d{color:#fff}</style>"
+    assert detect_color(css) == "#e11d48"
+
+    # Generic families never win.
+    assert detect_font("<style>body{font-family:Arial,sans-serif}</style>") == ("", "")

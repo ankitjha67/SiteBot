@@ -77,6 +77,9 @@ class SiteRow:
     crm_api_key: str = ""
     booking_url: str = ""
     qualifying_questions: list[str] = field(default_factory=list)
+    widget_font: str = ""
+    widget_font_url: str = ""
+    brand_extracted: bool = False
 
 
 @dataclass(slots=True)
@@ -103,7 +106,8 @@ _SITE_COLUMNS = (
     "s.twilio_from, s.messenger_page_token, s.messenger_verify_token, s.messenger_app_secret, "
     "s.teams_app_id, s.teams_app_password, s.digest_channel, s.avatar_style, "
     "s.llm_api_key, s.extra_urls, s.crm_provider, s.crm_api_key, "
-    "s.booking_url, s.qualifying_questions"
+    "s.booking_url, s.qualifying_questions, "
+    "s.widget_font, s.widget_font_url, s.brand_extracted"
 )
 
 
@@ -262,6 +266,33 @@ async def export_tenant_data(tenant_id: int) -> dict:
         ]
         out["sites"].append(d)
     return out
+
+
+async def apply_detected_branding(site_id: int, brand: dict[str, str]) -> None:
+    """Apply crawler-detected colour/font once, without overwriting anything the
+    operator already customised. Marks the site brand_extracted so re-crawls
+    leave branding alone."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT theme_color, widget_font, brand_extracted FROM sites WHERE id = $1",
+        site_id,
+    )
+    if row is None or row["brand_extracted"]:
+        return
+    sets, values = ["brand_extracted = TRUE"], []
+    color = brand.get("color")
+    # Only adopt the detected colour if the operator kept the default.
+    if color and row["theme_color"] in ("", "#4f46e5"):
+        values.append(color)
+        sets.append(f"theme_color = ${len(values) + 1}")
+    if brand.get("font") and not row["widget_font"]:
+        values.append(brand["font"])
+        sets.append(f"widget_font = ${len(values) + 1}")
+        values.append(brand.get("font_url", ""))
+        sets.append(f"widget_font_url = ${len(values) + 1}")
+    await pool.execute(
+        f"UPDATE sites SET {', '.join(sets)} WHERE id = $1", site_id, *values
+    )
 
 
 async def get_site_flag(site_id: int, column: str) -> bool:

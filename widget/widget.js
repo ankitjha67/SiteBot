@@ -57,7 +57,9 @@
     language: "en",
     avatar_style: "",
     proactive_message: "",
-    proactive_delay_s: 0
+    proactive_delay_s: 0,
+    widget_font: "",
+    widget_font_url: ""
   };
   var lastSources = [];
   var opened = false;
@@ -122,7 +124,47 @@
   // Config loads immediately (not on first open) so the proactive teaser
   // and theming are ready before any interaction.
   var configReady = loadConfig();
-  configReady.then(function () { maybeShowTeaser(); });
+  configReady.then(function () {
+    // Theme the launcher immediately so the closed bubble matches the brand,
+    // not just after the panel is first opened.
+    var c = config.theme_color || "#4f46e5";
+    host.style.setProperty("--accent", c);
+    root.host.style.setProperty("--accent", c);
+    applyBrandFont();
+    buildLauncher();
+    maybeShowTeaser();
+  });
+
+  // Match the client's own font (detected while crawling their site) so the
+  // assistant reads as part of their brand, not a bolt-on widget.
+  function applyBrandFont() {
+    if (!config.widget_font) return;
+    if (config.widget_font_url) {
+      var link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = config.widget_font_url;
+      document.head.appendChild(link); // Google Fonts must load in the page, not the shadow root
+    }
+    var stack = '"' + config.widget_font + '",-apple-system,"Segoe UI",sans-serif';
+    root.host.style.setProperty("--brandfont", stack);
+    var s = document.createElement("style");
+    s.textContent = ":host{font-family:var(--brandfont)!important;}#panel,#launcher,.msg,.text,button,input,textarea{font-family:var(--brandfont)!important;}";
+    root.appendChild(s);
+  }
+
+  // A named-assistant launcher (avatar + "Ask <name>") reads as a real
+  // assistant, not a generic feedback button.
+  function buildLauncher() {
+    var name = (config.display_name || "").trim();
+    var avatar = config.avatar_url
+      ? (config.avatar_url.charAt(0) === "/" ? API_BASE + config.avatar_url : config.avatar_url)
+      : "";
+    var html = '<span class="lface">' +
+      (avatar ? '<img src="' + avatar + '" alt="" />' : chatIcon()) + "</span>";
+    if (name) html += '<span class="llabel">Ask ' + name + "</span>";
+    launcher.innerHTML = html;
+    launcher.classList.add(name ? "named" : "plain");
+  }
 
   function openPanel() {
     removeTeaser();
@@ -680,9 +722,15 @@
     return [
       ":host{--accent:#4f46e5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;}",
       "*{box-sizing:border-box;}",
-      "#launcher{position:fixed;right:20px;bottom:20px;width:56px;height:56px;border-radius:50%;border:none;background:var(--accent);cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;transition:transform .15s ease;}",
+      "#launcher{position:fixed;right:20px;bottom:20px;height:56px;border:none;background:var(--accent);cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.22);display:flex;align-items:center;gap:10px;transition:transform .15s ease,box-shadow .15s ease;}",
+      "#launcher.plain{width:56px;border-radius:50%;justify-content:center;padding:0;}",
+      "#launcher.named{border-radius:30px;padding:6px 20px 6px 6px;}",
+      "#launcher .lface{width:44px;height:44px;border-radius:50%;overflow:hidden;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.18);}",
+      "#launcher.plain .lface{width:auto;height:auto;background:none;}",
+      "#launcher .lface img{width:100%;height:100%;object-fit:cover;}",
+      "#launcher .llabel{color:#fff;font-weight:600;font-size:15px;white-space:nowrap;padding-right:4px;}",
       "#launcher.left{right:auto;left:20px;}",
-      "#launcher:hover{transform:scale(1.06);}",
+      "#launcher:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(0,0,0,.28);}",
       "#launcher.hidden{display:none;}",
       "#panel{position:fixed;right:20px;bottom:20px;width:380px;max-width:calc(100vw - 32px);height:600px;max-height:calc(100vh - 40px);background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.28);display:none;flex-direction:column;overflow:hidden;}",
       "#panel.left{right:auto;left:20px;}",
