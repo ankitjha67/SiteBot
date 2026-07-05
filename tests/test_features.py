@@ -467,3 +467,24 @@ def test_feature_pricing_and_effective_set() -> None:
     # Business includes everything.
     from sitebot.features import ALL_FEATURE_KEYS
     assert effective_features("business", []) == ALL_FEATURE_KEYS
+
+
+def test_razorpay_signature_verification() -> None:
+    import hashlib
+    import hmac as _hmac
+
+    from sitebot.payments import verify_razorpay_signature, verify_razorpay_webhook
+
+    secret = "rzp_secret"
+    # Checkout callback: HMAC-SHA256(order_id|payment_id).
+    order, pay = "order_ABC", "pay_XYZ"
+    good = _hmac.new(secret.encode(), f"{order}|{pay}".encode(), hashlib.sha256).hexdigest()
+    assert verify_razorpay_signature(order, pay, good, secret) is True
+    assert verify_razorpay_signature(order, pay, "deadbeef", secret) is False
+    assert verify_razorpay_signature(order, pay, good, "") is False  # no secret
+
+    # Webhook: HMAC-SHA256(raw body).
+    body = b'{"event":"payment.captured"}'
+    wsig = _hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    assert verify_razorpay_webhook(body, wsig, secret) is True
+    assert verify_razorpay_webhook(body, "nope", secret) is False

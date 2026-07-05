@@ -704,6 +704,9 @@ async def choose_bundle(
         raise HTTPException(status_code=400, detail="Unknown bundle.")
     await store.set_bundle(ctx.tenant_id, bundle)
     _, alacarte = await store.get_entitlements(ctx.tenant_id)
+    from sitebot import payments
+    await payments.audit(f"tenant:{ctx.tenant_id}", "bundle.select", "tenant",
+                         str(ctx.tenant_id), {"bundle": bundle})
     return _plan_summary(bundle, alacarte)
 
 
@@ -728,6 +731,11 @@ async def update_features(
     else:
         current.discard(key)
     await store.set_alacarte_features(ctx.tenant_id, sorted(current))
+    from sitebot import payments
+    await payments.audit(
+        f"tenant:{ctx.tenant_id}", "feature." + ("enable" if body.get("enable") else "disable"),
+        "tenant", str(ctx.tenant_id), {"feature": key},
+    )
     return _plan_summary(bundle, sorted(current))
 
 
@@ -743,7 +751,246 @@ async def admin_set_plan(
     alacarte = [k for k in (body.get("features") or []) if k in features.FEATURES]
     await store.set_bundle(tenant_id, bundle)
     await store.set_alacarte_features(tenant_id, alacarte)
+    from sitebot import payments
+    await payments.audit(
+        "admin", "plan.change", "tenant", str(tenant_id),
+        {"bundle": bundle, "features": alacarte},
+    )
     return _plan_summary(bundle, alacarte)
+
+
+# =========================== admin billing console ===========================
+@app.get("/v1/admin/customers")
+async def admin_customers(_: Annotated[AuthContext, Depends(require_admin)]) -> dict:
+    """Every client with their plan, monthly value, sites, and usage — the
+    operator's customer-management view."""
+    from sitebot import features
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT t.id, t.name, t.email, t.plan, t.bundle, t.features, t.billing_status, "
+        "t.created_at, count(DISTINCT s.id) AS sites, "
+        "count(DISTINCT ue.id) FILTER ("
+        "  WHERE ue.created_at >= date_trunc('month', now())) AS msgs_month "
+        "FROM tenants t "
+        "LEFT JOIN sites s ON s.tenant_id = t.id "
+        "LEFT JOIN usage_events ue ON ue.tenant_id = t.id "
+        "GROUP BY t.id ORDER BY t.created_at DESC"
+    )
+    out, mrr = [], 0
+    for r in rows:
+        feats = r["features"]
+        feats = json.loads(feats) if isinstance(feats, str) else (feats or [])
+        cost = features.monthly_cost_cents(r["bundle"] or "", feats)
+        mrr += cost
+        out.append({
+            "id": r["id"], "name": r["name"], "email": r["email"],
+            "bundle": r["bundle"] or "-", "billing_status": r["billing_status"],
+            "monthly_cost_cents": cost, "sites": r["sites"],
+            "messages_this_month": r["msgs_month"],
+            "created_at": r["created_at"].isoformat(),
+        })
+    return {"customers": out, "count": len(out), "mrr_cents": mrr}
+
+
+@app.get("/v1/admin/customers/{tenant_id}")
+async def admin_customer_detail(
+    tenant_id: int, _: Annotated[AuthContext, Depends(require_admin)]
+) -> dict:
+    """Everything about one client: plan, sites, payment history, usage."""
+    pool = await get_pool()
+    t = await pool.fetchrow(
+        "SELECT id, name, email, plan, bundle, features, billing_status, created_at "
+        "FROM tenants WHERE id = $1", tenant_id
+    )
+    if t is None:
+        raise HTTPException(status_code=404, detail="Customer not found.")
+    sites = await pool.fetch(
+        "SELECT slug, status, pages_indexed, chunks_indexed FROM sites WHERE tenant_id = $1",
+        tenant_id,
+    )
+    pays = await pool.fetch(
+        "SELECT id, provider, provider_txn_id, amount_cents, currency, status, "
+        "description, created_at FROM payments WHERE tenant_id = $1 "
+        "ORDER BY created_at DESC LIMIT 100", tenant_id,
+    )
+    feats = t["features"]
+    feats = json.loads(feats) if isinstance(feats, str) else (feats or [])
+    return {
+        "tenant": {
+            "id": t["id"], "name": t["name"], "email": t["email"],
+            "bundle": t["bundle"] or "-", "features": feats,
+            "billing_status": t["billing_status"], "created_at": t["created_at"].isoformat(),
+        },
+        "sites": [dict(s) for s in sites],
+        "payments": [
+            {**dict(p), "created_at": p["created_at"].isoformat()} for p in pays
+        ],
+    }
+
+
+@app.get("/v1/admin/payments")
+async def admin_payments(
+    _: Annotated[AuthContext, Depends(require_admin)],
+    status: str = "", provider: str = "", days: int = 90, limit: int = 500,
+) -> dict:
+    """The full ledger with filters and a total."""
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT p.id, p.tenant_id, t.name AS tenant, p.provider, p.provider_txn_id, "
+        "p.amount_cents, p.currency, p.status, p.description, p.created_at "
+        "FROM payments p LEFT JOIN tenants t ON t.id = p.tenant_id "
+        "WHERE p.created_at >= now() - ($1 || ' days')::interval "
+        "AND ($2 = '' OR p.status = $2) AND ($3 = '' OR p.provider = $3) "
+        "ORDER BY p.created_at DESC LIMIT $4",
+        str(int(days)), status, provider, int(limit),
+    )
+    total = sum(r["amount_cents"] for r in rows if r["status"] == "paid")
+    return {
+        "payments": [
+            {**dict(r), "created_at": r["created_at"].isoformat()} for r in rows
+        ],
+        "count": len(rows), "paid_total_cents": total,
+    }
+
+
+@app.get("/v1/admin/payments/analytics")
+async def admin_payment_analytics(
+    _: Annotated[AuthContext, Depends(require_admin)], days: int = 30
+) -> dict:
+    """Revenue analytics: MRR from active plans, collected revenue, by provider
+    and status, and a daily series for charts."""
+    from sitebot import features
+    pool = await get_pool()
+    # MRR from current plans.
+    trows = await pool.fetch("SELECT bundle, features FROM tenants")
+    mrr = 0
+    for r in trows:
+        feats = r["features"]
+        feats = json.loads(feats) if isinstance(feats, str) else (feats or [])
+        mrr += features.monthly_cost_cents(r["bundle"] or "", feats)
+    collected = await pool.fetchval(
+        "SELECT COALESCE(sum(amount_cents),0) FROM payments "
+        "WHERE status = 'paid' AND created_at >= now() - ($1 || ' days')::interval",
+        str(int(days)),
+    )
+    by_provider = await pool.fetch(
+        "SELECT provider, count(*) n, "
+        "COALESCE(sum(amount_cents) FILTER (WHERE status='paid'),0) paid "
+        "FROM payments WHERE created_at >= now() - ($1 || ' days')::interval "
+        "GROUP BY provider", str(int(days)),
+    )
+    by_status = await pool.fetch(
+        "SELECT status, count(*) n FROM payments "
+        "WHERE created_at >= now() - ($1 || ' days')::interval GROUP BY status",
+        str(int(days)),
+    )
+    daily = await pool.fetch(
+        "SELECT date_trunc('day', created_at)::date d, "
+        "COALESCE(sum(amount_cents) FILTER (WHERE status='paid'),0) paid "
+        "FROM payments WHERE created_at >= now() - ($1 || ' days')::interval "
+        "GROUP BY d ORDER BY d", str(int(days)),
+    )
+    return {
+        "mrr_cents": mrr, "collected_cents": int(collected), "window_days": days,
+        "by_provider": [dict(r) for r in by_provider],
+        "by_status": {r["status"]: r["n"] for r in by_status},
+        "daily": [{"date": r["d"].isoformat(), "paid_cents": r["paid"]} for r in daily],
+    }
+
+
+@app.get("/v1/admin/ledger.csv")
+async def admin_ledger_csv(
+    _: Annotated[AuthContext, Depends(require_admin)], days: int = 365
+) -> Response:
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT p.id, p.created_at, t.name AS tenant, p.tenant_id, p.provider, "
+        "p.provider_txn_id, p.amount_cents, p.currency, p.status, p.description "
+        "FROM payments p LEFT JOIN tenants t ON t.id = p.tenant_id "
+        "WHERE p.created_at >= now() - ($1 || ' days')::interval ORDER BY p.created_at DESC",
+        str(int(days)),
+    )
+    return _csv(
+        [{**dict(r), "created_at": r["created_at"].isoformat()} for r in rows],
+        ["id", "created_at", "tenant", "tenant_id", "provider", "provider_txn_id",
+         "amount_cents", "currency", "status", "description"],
+    )
+
+
+@app.get("/v1/admin/audit")
+async def admin_audit(
+    _: Annotated[AuthContext, Depends(require_admin)], limit: int = 200
+) -> dict:
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT id, actor, action, target_type, target_id, detail, created_at "
+        "FROM audit_log ORDER BY created_at DESC LIMIT $1", min(int(limit), 1000)
+    )
+    return {"events": [
+        {**dict(r), "detail": r["detail"] if isinstance(r["detail"], dict)
+         else json.loads(r["detail"] or "{}"),
+         "created_at": r["created_at"].isoformat()} for r in rows
+    ]}
+
+
+class ManualPayment(BaseModel):
+    tenant_id: int
+    amount_cents: int
+    currency: str = "usd"
+    description: str = "Manual entry"
+    status: str = Field(default="paid", pattern="^(paid|failed|refunded|created)$")
+
+
+@app.post("/v1/admin/payments")
+async def admin_record_payment(
+    body: ManualPayment, ctx: Annotated[AuthContext, Depends(require_admin)]
+) -> dict:
+    """Record a payment the operator collected out-of-band (bank transfer,
+    UPI, cash) so the ledger stays complete."""
+    from sitebot import payments
+    pid = await payments.record_payment(
+        body.tenant_id, "manual", body.amount_cents, status=body.status,
+        currency=body.currency, description=body.description,
+    )
+    return {"payment_id": pid}
+
+
+@app.post("/v1/admin/payments/{payment_id}/refund")
+async def admin_refund(
+    payment_id: int, _: Annotated[AuthContext, Depends(require_admin)]
+) -> dict:
+    from sitebot import payments
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "UPDATE payments SET status = 'refunded', updated_at = now() "
+        "WHERE id = $1 RETURNING tenant_id, amount_cents", payment_id
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Payment not found.")
+    await payments.audit("admin", "payment.refunded", "payment", str(payment_id),
+                         {"amount_cents": row["amount_cents"]})
+    return {"refunded": payment_id}
+
+
+# ------------------------------ razorpay flow ------------------------------
+@app.post("/v1/billing/razorpay/order")
+async def razorpay_order(ctx: Annotated[AuthContext, Depends(require_auth)]) -> dict:
+    """Create a Razorpay order for the caller's current monthly plan total."""
+    from sitebot import features, payments
+    if ctx.tenant_id is None:
+        raise HTTPException(status_code=400, detail="Use a tenant credential.")
+    bundle, alacarte = await store.get_entitlements(ctx.tenant_id)
+    amount = features.monthly_cost_cents(bundle, alacarte)
+    cur = "INR" if settings.billing_currency.lower() == "inr" else "USD"
+    return await payments.create_razorpay_order(ctx.tenant_id, amount, settings, currency=cur)
+
+
+@app.post("/v1/billing/razorpay/webhook")
+async def razorpay_webhook(request: Request) -> dict:
+    from sitebot import payments
+    body = await request.body()
+    sig = request.headers.get("x-razorpay-signature", "")
+    return await payments.handle_razorpay_webhook(body, sig, settings)
 
 
 @app.get("/v1/tenants/me/export")

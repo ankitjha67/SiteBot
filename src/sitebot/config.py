@@ -143,6 +143,12 @@ class Settings(BaseSettings):
     # Billing (Phase 3). All optional; billing endpoints no-op without them.
     stripe_secret_key: str = Field(default="")
     stripe_webhook_secret: str = Field(default="")
+
+    # Razorpay (India). Optional; endpoints 503 without a key id + secret.
+    razorpay_key_id: str = Field(default="")
+    razorpay_key_secret: str = Field(default="")
+    razorpay_webhook_secret: str = Field(default="")
+    billing_currency: str = Field(default="usd", description="usd or inr.")
     # Map of Stripe price id -> plan name, JSON. e.g. '{"price_123":"starter"}'
     stripe_price_map_json: str = Field(default="")
 

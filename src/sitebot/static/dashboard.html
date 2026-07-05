@@ -249,6 +249,7 @@
       <span class="microlabel">Workspace</span>
       <button class="navitem active" id="nav-sites" onclick="showSites()"><span class="dot"></span>Sites</button>
       <button class="navitem" id="nav-team" onclick="showTeam()"><span class="dot"></span>Team</button>
+      <button class="navitem" id="nav-admin" onclick="showAdmin()" style="display:none"><span class="dot"></span>Admin console</button>
     </div>
 
     <div class="navgroup" id="sitenav">
@@ -365,6 +366,51 @@
           <p class="hint">Generating a new key <b>immediately invalidates your current one</b>. You'll need to sign in again with the new key.</p>
           <button class="btn ghost" onclick="rotateMyKey()">Rotate my key</button>
           <div class="hint" id="rotateResult" style="margin-top:10px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================== view: admin console ================== -->
+    <div class="view" id="view-admin">
+      <div class="pagehead">
+        <div><h2>Admin console</h2><div class="sub">Revenue, ledger, audit trail, and every customer — platform-wide.</div></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn ghost" onclick="downloadLedger()">Ledger CSV</button>
+        </div>
+      </div>
+      <div class="kpis" id="adminKpis" style="margin-bottom:18px"></div>
+      <div class="card">
+        <div class="card-head"><h3>Customers</h3><span class="meta-inline" id="custCount"></span></div>
+        <div class="card-body flush">
+          <table id="custT"><thead><tr><th>Customer</th><th>Plan</th><th class="num">MRR</th><th class="num">Sites</th><th class="num">Msgs/mo</th><th>Joined</th><th></th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Payments ledger</h3><span class="meta-inline" id="payTotal"></span></div>
+        <div class="card-body">
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <select id="payStatus" onchange="loadPayments()"><option value="">All statuses</option><option value="paid">Paid</option><option value="failed">Failed</option><option value="refunded">Refunded</option><option value="created">Created</option></select>
+            <select id="payProvider" onchange="loadPayments()"><option value="">All providers</option><option value="stripe">Stripe</option><option value="razorpay">Razorpay</option><option value="manual">Manual</option></select>
+          </div>
+          <table id="payT"><thead><tr><th>When</th><th>Customer</th><th>Provider</th><th>Txn ID</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Record a payment</h3><span class="meta-inline">Bank transfer, UPI, cash — keep the ledger complete</span></div>
+        <div class="card-body">
+          <div class="formgrid">
+            <div class="field"><label>Customer ID</label><input type="number" id="mpTenant" placeholder="tenant id" /></div>
+            <div class="field"><label>Amount (cents)</label><input type="number" id="mpAmount" placeholder="9900" /></div>
+            <div class="field"><label>Currency</label><input type="text" id="mpCur" value="usd" /></div>
+            <div class="field"><label>Note</label><input type="text" id="mpDesc" placeholder="Q1 invoice, UPI" /></div>
+          </div>
+          <button class="btn" onclick="recordPayment()">Add to ledger</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Audit trail</h3><span class="meta-inline">Every plan change, payment, and admin action</span></div>
+        <div class="card-body flush">
+          <table id="auditT"><thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Target</th><th>Detail</th></tr></thead><tbody></tbody></table>
         </div>
       </div>
     </div>
@@ -838,6 +884,7 @@ function boot() {
       $("accountKpis").style.display = "none";
       $("rotateCard").style.display = "none";  // admin key is not a tenant key
       $("billingCard").style.display = "none"; // plan is per-tenant, not for the global admin
+      $("nav-admin").style.display = "";       // reveal the admin console
     } else {
       $("who").textContent = me.name;
       $("whoPlan").textContent = me.plan + " plan";
@@ -871,6 +918,88 @@ function showSites() {
   $("sitenav").classList.remove("on");
   switchView("view-sites", "nav-sites");
   loadSites();
+}
+
+/* ------------------------------ admin console ------------------------------ */
+function showAdmin() {
+  currentSlug = null;
+  $("sitenav").classList.remove("on");
+  switchView("view-admin", "nav-admin");
+  loadAdminAnalytics(); loadCustomers(); loadPayments(); loadAudit();
+}
+function loadAdminAnalytics() {
+  api("/v1/admin/payments/analytics").then(function (a) {
+    $("adminKpis").innerHTML =
+      kpi(money(a.mrr_cents), "MRR (recurring)") +
+      kpi(money(a.collected_cents), "collected · " + a.window_days + "d") +
+      kpi((a.by_status.paid || 0), "paid txns") +
+      kpi((a.by_status.failed || 0) + (a.by_status.refunded || 0), "failed / refunded");
+  }).catch(function (e) { toast(e.message, true); });
+}
+function loadCustomers() {
+  api("/v1/admin/customers").then(function (d) {
+    $("custCount").textContent = d.count + " customers · " + money(d.mrr_cents) + " MRR";
+    $("custT").querySelector("tbody").innerHTML = d.customers.map(function (c) {
+      return "<tr><td><b>" + esc(c.name) + "</b><br><span class='meta-inline'>" + esc(c.email || "") + " · #" + c.id + "</span></td>" +
+        "<td><span class='pill ok'>" + esc(c.bundle) + "</span></td>" +
+        "<td class='num'>" + money(c.monthly_cost_cents) + "</td><td class='num'>" + c.sites + "</td>" +
+        "<td class='num'>" + c.messages_this_month + "</td><td class='meta-inline'>" + fmtDate(c.created_at) + "</td>" +
+        "<td style='text-align:right'><button class='btn ghost' onclick='viewCustomer(" + c.id + ")'>View</button></td></tr>";
+    }).join("");
+  }).catch(function (e) { toast(e.message, true); });
+}
+function viewCustomer(id) {
+  api("/v1/admin/customers/" + id).then(function (d) {
+    var t = d.tenant;
+    var lines = ["Customer: " + t.name + " (#" + t.id + ")", "Email: " + (t.email || "—"),
+      "Plan: " + t.bundle + "  Features: " + (t.features.join(", ") || "core only"),
+      "Sites: " + d.sites.map(function (s) { return s.slug + " (" + s.status + ")"; }).join(", "),
+      "Payments: " + d.payments.length];
+    alert(lines.join("\n"));
+  }).catch(function (e) { toast(e.message, true); });
+}
+function loadPayments() {
+  var q = "?status=" + $("payStatus").value + "&provider=" + $("payProvider").value;
+  api("/v1/admin/payments" + q).then(function (d) {
+    $("payTotal").textContent = money(d.paid_total_cents) + " collected · " + d.count + " rows";
+    $("payT").querySelector("tbody").innerHTML = d.payments.map(function (p) {
+      var st = p.status === "paid" ? "ok" : (p.status === "refunded" ? "busy" : (p.status === "failed" ? "err" : ""));
+      return "<tr><td class='meta-inline'>" + fmtDate(p.created_at) + "</td><td>" + esc(p.tenant || "—") + "</td>" +
+        "<td>" + esc(p.provider) + "</td><td class='num' style='font-size:12px'>" + esc(p.provider_txn_id || "—") + "</td>" +
+        "<td class='num'>" + money(p.amount_cents) + " " + esc((p.currency || "").toUpperCase()) + "</td>" +
+        "<td><span class='pill " + st + "'>" + esc(p.status) + "</span></td>" +
+        "<td style='text-align:right'>" + (p.status === "paid" ? "<button class='btn ghost' onclick='refundPayment(" + p.id + ")'>Refund</button>" : "") + "</td></tr>";
+    }).join("") || "<tr><td colspan='7' class='meta-inline'>No payments in this view yet.</td></tr>";
+  }).catch(function (e) { toast(e.message, true); });
+}
+function refundPayment(id) {
+  if (!confirm("Mark payment #" + id + " as refunded?")) return;
+  api("/v1/admin/payments/" + id + "/refund", {method: "POST"})
+    .then(function () { toast("Marked refunded"); loadPayments(); loadAudit(); loadAdminAnalytics(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+function recordPayment() {
+  var body = {tenant_id: parseInt($("mpTenant").value, 10), amount_cents: parseInt($("mpAmount").value, 10),
+    currency: $("mpCur").value.trim() || "usd", description: $("mpDesc").value.trim() || "Manual entry"};
+  if (!body.tenant_id || !body.amount_cents) { toast("Customer ID and amount required", true); return; }
+  api("/v1/admin/payments", {method: "POST", body: JSON.stringify(body)})
+    .then(function () { toast("Recorded in ledger"); $("mpAmount").value = ""; loadPayments(); loadAudit(); loadAdminAnalytics(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+function loadAudit() {
+  api("/v1/admin/audit").then(function (d) {
+    $("auditT").querySelector("tbody").innerHTML = d.events.map(function (e) {
+      return "<tr><td class='meta-inline'>" + fmtDate(e.created_at) + "</td><td>" + esc(e.actor) + "</td>" +
+        "<td><span class='pill'>" + esc(e.action) + "</span></td><td class='meta-inline'>" + esc(e.target_type + " " + e.target_id) + "</td>" +
+        "<td class='meta-inline' style='font-size:12px'>" + esc(JSON.stringify(e.detail)) + "</td></tr>";
+    }).join("") || "<tr><td colspan='5' class='meta-inline'>No audit events yet.</td></tr>";
+  }).catch(function (e) { toast(e.message, true); });
+}
+function downloadLedger() {
+  fetch("/v1/admin/ledger.csv", {headers: {"X-API-Key": KEY}})
+    .then(function (r) { if (!r.ok) throw new Error("Export failed"); return r.blob(); })
+    .then(function (b) { var a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "sitebot-ledger.csv"; a.click(); URL.revokeObjectURL(a.href); })
+    .catch(function (e) { toast(e.message, true); });
 }
 
 /* ------------------------------ team ------------------------------ */

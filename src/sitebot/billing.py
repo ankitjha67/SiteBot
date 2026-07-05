@@ -110,6 +110,10 @@ async def handle_webhook(payload: bytes, signature: str, settings: Settings) -> 
         )
         log.info("billing: subscription canceled for customer %s", customer_id)
 
+    # Record any actual money movement into the ledger.
+    from sitebot import payments
+    await payments.handle_stripe_payment_event(event)
+
     return {"received": kind}
 
 
